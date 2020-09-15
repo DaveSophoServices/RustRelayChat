@@ -1,0 +1,41 @@
+<html>
+    <head>
+    <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+    <script type="text/javascript">
+        function log(msg) {
+            $('#log').text($('#log').text() + msg + "\n");
+        }
+        $(function () {
+            var ws = new WebSocket('ws://localhost:9001/');
+            ws.onopen = function () {
+                log('connected');
+            };
+            ws.onclose = function (ev) {
+                log('closed');
+            };
+            ws.onmessage = function (ev) {
+                log('received: ' + ev.data);
+                $('#message').val('');
+            };
+            ws.onerror = function (ev) {
+                console.log(ev);
+                log('error: ' + ev.data);
+            };
+            $('#form').submit(function () {
+                ws.send($('#message').val());
+                return false;
+            });
+        });
+    </script>
+    </head>
+    <body>
+        <p>Chat page</p>
+        <section class="row">
+            <form id="form">
+                <input type="text" name="message" id="message">
+                <input type="submit">
+            </form>
+        <pre id="log"></pre>
+    </body>
+</html>
