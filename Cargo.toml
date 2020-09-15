@@ -1,0 +1,10 @@
+[package]
+name = "rust-relay-chat"
+version = "0.1.0"
+authors = ["Dave Smith <dave@sophoservices.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tungstenite = "0.11.1"
