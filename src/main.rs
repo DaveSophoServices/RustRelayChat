@@ -11,23 +11,40 @@ fn main() {
     // this channel will be used by clients to put their messages when
     // they receive them from the user
     let (tx,rx) = mpsc::channel();
-    let outgoing_list: Arc<Vec<mpsc::Sender<&str>>> = Arc::new(Vec::new());
+    let (newch_tx, newch_rx) = mpsc::channel();
+    //    let outgoing_list: Arc<Vec<mpsc::Sender<&str>>> = Arc::new(Vec::new());
 
-    let central_outgoing = outgoing_list.clone();
+    // let central_outgoing = outgoing_list.clone();
     spawn (move || {
+	let central_outgoing = Vec::new()
 	loop {
-	    let msg = rx.recv().unwrap();
-	    println!("{}", msg);
-	    for tx in *central_outgoing {
-		tx.send(msg).unwrap();
+	    match rx.try_recv() {
+		Ok(recv_msg) => {
+		    println!("{}", msg);
+		    for tx in *central_outgoing {
+			tx.send(msg).unwrap();
+		    }
+		},
+		Err(mpsc::TryRecvError::Empty) => ,
+		Err(mpsc::TryRecvError::Disconnected) => println!("central recv disconnected"),
 	    }
+
+	    // any new transmit clients
+	    match newch_rx.try_recv() {
+		Ok(new_channel) => central_outgoing.push(new_channel),
+		Err(mpsc::TryRecvError::Empty) => ,
+		Err(mpsc::TryRecvError::Disconnected) => println!("new channel recv disconnected"),
+	    }
+
+	    std::thread::sleep(Duration::new(0,100));
 	}
+	
     });
     
     for stream in server.incoming() {
 	let tx_clone = tx.clone();
 	let (tx2, rx2) = mpsc::channel();
-	&outgoing_list.push(tx2);
+	newch_tx
 	    
 	spawn (move || {
 	    let mut websocket = accept(stream.unwrap()).unwrap();
