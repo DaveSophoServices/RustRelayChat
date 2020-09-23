@@ -22,7 +22,7 @@ pub fn core (rx: mpsc::Receiver<tungstenite::Message>, newch_rx: mpsc::Receiver<
 	    Err(mpsc::TryRecvError::Disconnected) => println!("new channel recv disconnected"),
 	}
 
-	std::thread::sleep(Duration::new(0,100));
+	std::thread::sleep(Duration::new(1,0));
     }
     
 }
