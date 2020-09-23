@@ -34,8 +34,17 @@ fn main() {
 //			let msg: &str = 
 			tx_clone.send(msg).unwrap()
 		    },
-		    Err(x) => println!("websocket error: {}", x),
-		    // TODO handle IO error: Resource temporarily unavailable - we're using non-blocking reads
+		    Err(tungstenite::error::Error::Io(x)) => {
+			if let Some(raw_error) = x.raw_os_error() {
+			    if raw_error == 11 {
+			    } else {
+				println!("websocket error: ({}) {}", type_of(&x), x);
+			    }
+			}
+		    },
+		    Err(x) => {
+			println!("websocket error: ({}) {}", type_of(&x), x)
+		    },
 		}
 		// check rx2 for messages too
 		let recv_res = rx2.try_recv();
@@ -53,4 +62,8 @@ fn main() {
 	    }
 	});
     }
+}
+
+fn type_of<T>(_: &T) -> &'static str {
+    std::any::type_name::<T>()
 }
