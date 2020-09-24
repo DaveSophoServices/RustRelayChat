@@ -1,11 +1,18 @@
 use std::net::TcpListener;
 use std::thread::spawn;
 use tungstenite::server::accept;
-use std::sync::mpsc;
+use std::sync::{Arc,RwLock,mpsc};
+use std::time::Duration;
 
 mod server;
 
 fn main() {
+    run(0);
+}
+
+fn run(timer: u64) {
+    let shutdown = Arc::new(RwLock::new(0));
+    
     let server = TcpListener::bind("127.0.0.1:9001").unwrap();
 
     // this channel will be used by clients to put their messages when
@@ -14,14 +21,26 @@ fn main() {
     let (newch_tx, newch_rx) = mpsc::channel();
     //    let outgoing_list: Arc<Vec<mpsc::Sender<&str>>> = Arc::new(Vec::new());
 
+    let c_shutdown = shutdown.clone();
     // let central_outgoing = outgoing_list.clone();
-    spawn (move || server::core(rx, newch_rx));
-    
+    spawn (move || server::core(rx, newch_rx, c_shutdown));
+
+    if timer > 0 {
+	// this will shutdown the server in 10 seconds from starting
+	let c_shutdown = shutdown.clone();
+	spawn (move || {
+	    std::thread::sleep(Duration::new(timer,0));
+	    let mut n = c_shutdown.write().unwrap();
+	    *n = 1;
+	});
+    }
+	   
     for stream in server.incoming() {
 	let tx_clone = tx.clone();
 	let (tx2, rx2) = mpsc::channel();
-	newch_tx.send(tx2).unwrap();
+	let shutdown = shutdown.clone();
 	
+	newch_tx.send(tx2).unwrap();
 	spawn (move || {
 	    let stream_unwrapped = stream.unwrap();
 	    let stream_clone = stream_unwrapped.try_clone();
@@ -34,9 +53,14 @@ fn main() {
 		    None
 		);
 
+	    let c_shutdown = shutdown.clone();
 	    spawn (move || {
 		loop {
 		    // check rx2 for messages too
+		    if *c_shutdown.read().unwrap() != 0 {
+			break;
+		    }
+		    
 		    let recv_res = rx2.recv();
 		    match recv_res {
 			// send it to the central thread
@@ -49,6 +73,9 @@ fn main() {
 	    });
 		   
 	    loop {
+		if *shutdown.read().unwrap() != 0 {
+		    break;
+		}
 		let msg_res = websocket_recv.read_message();
 		match msg_res {
 		    Ok(msg) => {
@@ -83,4 +110,22 @@ fn main() {
 
 fn type_of<T>(_: &T) -> &'static str {
     std::any::type_name::<T>()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    use std::sync::{Arc,Mutex};
+    use std::thread::spawn;
+    #[test]
+    fn it_starts() {
+	// check it finishes
+	let done = Arc::new(Mutex::new(0));
+	let c_done = done.clone();
+	let t = spawn(move||{ run(1); *c_done.lock().unwrap() = 1; });
+
+	std::thread::sleep(Duration::new(3,0));
+	assert_eq!(*done.lock().unwrap(), 1, "server finished in the alloted time");
+    }
 }

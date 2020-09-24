@@ -1,9 +1,17 @@
 use std::sync::mpsc;
 use std::time::Duration;
 
-pub fn core (rx: mpsc::Receiver<tungstenite::Message>, newch_rx: mpsc::Receiver<mpsc::Sender<tungstenite::Message>>) {
+
+pub fn core (
+    rx: mpsc::Receiver<tungstenite::Message>,
+    newch_rx: mpsc::Receiver<mpsc::Sender<tungstenite::Message>>,
+    shutdown:std::sync::Arc<std::sync::RwLock<i32>>
+) {
     let mut central_outgoing: Vec<mpsc::Sender<tungstenite::Message>> = Vec::new();
     loop {
+	if *shutdown.read().unwrap() != 0 {
+	    break;
+	}
 	match rx.try_recv() {
 	    Ok(recv_msg) => {
 		println!("{}", recv_msg);
@@ -25,4 +33,7 @@ pub fn core (rx: mpsc::Receiver<tungstenite::Message>, newch_rx: mpsc::Receiver<
 	std::thread::sleep(Duration::new(1,0));
     }
     
+}
+
+pub fn sendrecv() {
 }
