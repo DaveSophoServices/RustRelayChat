@@ -39,10 +39,13 @@ fn run(timer: u64) {
 	let tx_clone = tx.clone();
 	let (tx2, rx2) = mpsc::channel();
 	let shutdown = shutdown.clone();
-	
+
+	let stream_unwrapped = stream.unwrap();
 	newch_tx.send(tx2).unwrap();
 	spawn (move || {
-	    let stream_unwrapped = stream.unwrap();
+	    let addr = stream_unwrapped.peer_addr().unwrap();
+	    dbg!(format!("new connection: {}", addr));
+	    
 	    let stream_clone = stream_unwrapped.try_clone();
 	    let mut websocket = accept(stream_unwrapped).unwrap();
 	    //websocket.get_ref().set_read_timeout(Some(Duration::new(0,100))).unwrap();
@@ -54,6 +57,7 @@ fn run(timer: u64) {
 		);
 
 	    let c_shutdown = shutdown.clone();
+	    let c_addr = addr.clone();
 	    spawn (move || {
 		loop {
 		    // check rx2 for messages too
@@ -64,10 +68,13 @@ fn run(timer: u64) {
 		    let recv_res = rx2.recv();
 		    match recv_res {
 			// send it to the central thread
-			Ok(recv_msg) => websocket.write_message(recv_msg).unwrap(),
+			Ok(recv_msg) => {
+			    dbg!(format!("[{}] Writing to websocket", c_addr));
+			    websocket.write_message(recv_msg).unwrap();
+			},
 			//Err(mpsc::TryRecvError::Empty) => (),
 			//Err(mpsc::TryRecvError::Disconnected) => println!("rx2 disconnect"),
-			Err(x) => println!("rx2: {}", x),
+			Err(x) => println!("[{}] rx2: {}", c_addr, x),
 		    }
 		}
 	    });
@@ -79,6 +86,7 @@ fn run(timer: u64) {
 		let msg_res = websocket_recv.read_message();
 		match msg_res {
 		    Ok(msg) => {
+			dbg!(format!("[{}] Sending msg to channel", addr));
 			tx_clone.send(msg).unwrap()
 		    },
 		    // Err(tungstenite::error::Error::Io(x)) => {
@@ -90,11 +98,15 @@ fn run(timer: u64) {
 		    // 	}
 		    // },
 		    Err(tungstenite::error::Error::ConnectionClosed) => {
-			println!("websocket closed");
+			println!("[{}] websocket closed", addr);
+			break; // from loop
+		    },
+		    Err(tungstenite::error::Error::AlreadyClosed) => {
+			println!("[{}] websocket already closed", addr);
 			break; // from loop
 		    },
 		    Err(x) => {
-			println!("websocket error: ({}) {}", type_of(&x), x)
+			println!("[{}] websocket error: ({}) {}", addr, type_of(&x), x)
 		    },
 		}
 
@@ -134,9 +146,9 @@ mod tests {
 
     #[test]
     fn it_works() {
-	// start server 
-	spawn(|| { run(0) });
-	std::thread::sleep(Duration::new(0,500));
+	// start server for 10 seconds
+	spawn(|| { run(10) });
+	std::thread::sleep(Duration::new(1,0));
 			   
 	// connect to server with a websocket client
 	let a = spawn( ||{
@@ -145,7 +157,7 @@ mod tests {
 	    std::thread::sleep(Duration::new(0,500));
 	    // send a random string to first client
 	    ws.write_message(Message::Text("going to send it".to_string())).unwrap();
-	    
+	    ws.write_pending();
 	});
 
 	// connect again to server with a websocket client
@@ -156,8 +168,9 @@ mod tests {
 	    let msg = ws.read_message().unwrap();
 	    assert_eq!(msg.into_text().unwrap(), "going to send it".to_string());
 	});
-	   
+
 	a.join().unwrap();
 	b.join().unwrap();
     }
+    
 }
