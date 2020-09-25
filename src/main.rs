@@ -118,6 +118,9 @@ mod tests {
     
     use std::sync::{Arc,Mutex};
     use std::thread::spawn;
+    use tungstenite::client::connect;
+    use tungstenite::Message;
+    
     #[test]
     fn it_starts() {
 	// check it finishes
@@ -127,5 +130,34 @@ mod tests {
 
 	std::thread::sleep(Duration::new(3,0));
 	assert_eq!(*done.lock().unwrap(), 1, "server finished in the alloted time");
+    }
+
+    #[test]
+    fn it_works() {
+	// start server 
+	spawn(|| { run(0) });
+	std::thread::sleep(Duration::new(0,500));
+			   
+	// connect to server with a websocket client
+	let a = spawn( ||{
+	    let mut ws = connect("ws://localhost:9001/").unwrap().0;
+	    // wait for other thread to connect
+	    std::thread::sleep(Duration::new(0,500));
+	    // send a random string to first client
+	    ws.write_message(Message::Text("going to send it".to_string())).unwrap();
+	    
+	});
+
+	// connect again to server with a websocket client
+	let b = spawn( ||{
+	    let mut ws = connect("ws://localhost:9001/").unwrap().0;
+	    // blocks until it gets a message
+	    // it should be received on second client
+	    let msg = ws.read_message().unwrap();
+	    assert_eq!(msg.into_text().unwrap(), "going to send it".to_string());
+	});
+	   
+	a.join().unwrap();
+	b.join().unwrap();
     }
 }
