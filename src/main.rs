@@ -1,6 +1,7 @@
 use std::net::TcpListener;
 use std::thread::spawn;
 use tungstenite::server::accept;
+use tungstenite::error::Error;
 use std::sync::{Arc,RwLock,mpsc};
 use std::time::Duration;
 
@@ -12,9 +13,13 @@ fn main() {
 
 fn run(timer: u64) {
     let shutdown = Arc::new(RwLock::new(0));
-    
-    let server = TcpListener::bind("127.0.0.1:9001").unwrap();
 
+    let server = 
+	match TcpListener::bind("127.0.0.1:9001") {
+	    Ok(x) => x,
+	    Err(x) => panic!("Cannot listen on port 9001: {}", x),
+	};
+    
     // this channel will be used by clients to put their messages when
     // they receive them from the user
     let (tx,rx) = mpsc::channel();
@@ -70,11 +75,20 @@ fn run(timer: u64) {
 			// send it to the central thread
 			Ok(recv_msg) => {
 			    dbg!(format!("[{}] Writing to websocket", c_addr));
-			    websocket.write_message(recv_msg).unwrap();
+			    match websocket.write_message(recv_msg) {
+				Err(Error::ConnectionClosed) => break,
+				Err(x) => {
+				    // we got a fatal error from the connection
+				    // it's probably died
+				    break
+				},
+				Ok(x) => (),
+			    }
 			},
-			//Err(mpsc::TryRecvError::Empty) => (),
-			//Err(mpsc::TryRecvError::Disconnected) => println!("rx2 disconnect"),
-			Err(x) => println!("[{}] rx2: {}", c_addr, x),
+			Err(mpsc::RecvError) => {
+			    println!("rx2 disconnect");
+			    break;
+			},
 		    }
 		}
 	    });
@@ -87,26 +101,24 @@ fn run(timer: u64) {
 		match msg_res {
 		    Ok(msg) => {
 			dbg!(format!("[{}] Sending msg to channel", addr));
-			tx_clone.send(msg).unwrap()
+			match tx_clone.send(msg) {
+			    Ok(_) => (),
+			    Err(x) => {
+				println!("ERR: unable to send msg to central: {}", x);
+			    },
+			}
 		    },
-		    // Err(tungstenite::error::Error::Io(x)) => {
-		    // 	if let Some(raw_error) = x.raw_os_error() {
-		    // 	    if raw_error == 11 {
-		    // 	    } else {
-		    // 		println!("websocket error: ({}) {}", type_of(&x), x);
-		    // 	    }
-		    // 	}
-		    // },
-		    Err(tungstenite::error::Error::ConnectionClosed) => {
+		    Err(Error::ConnectionClosed) => {
 			println!("[{}] websocket closed", addr);
 			break; // from loop
 		    },
-		    Err(tungstenite::error::Error::AlreadyClosed) => {
+		    Err(Error::AlreadyClosed) => {
 			println!("[{}] websocket already closed", addr);
 			break; // from loop
 		    },
 		    Err(x) => {
-			println!("[{}] websocket error: ({}) {}", addr, type_of(&x), x)
+			println!("[{}] websocket error: ({}) {}", addr, type_of(&x), x);
+			break; // from loop
 		    },
 		}
 
@@ -172,5 +184,72 @@ mod tests {
 	a.join().unwrap();
 	b.join().unwrap();
     }
+
+    use std::collections::HashMap;
     
+    #[test]
+    fn load_test() {
+	let max = 5;
+	// start the server for 30 seconds
+	spawn ( || { run(30); } );
+	// build a list of x number of random numbers
+
+	// let the listener above get situated before we begin
+	std::thread::sleep(Duration::new(1,500));
+	
+	let mut list = Vec::new();
+	for x in 0..max {
+	    list.push(format!("{}", x).to_string());
+	}
+	
+	// clone it, then launch the listener client
+	let mut hash = HashMap::new();
+	for x in &list {
+	    hash.insert(x.clone(), 1);
+	}
+
+	// save a ref to this hash for the end check
+	//let hash_c = hash.clone();
+	
+	let listener = spawn ( move ||
+		{
+		    let mut ws = connect("ws://localhost:9001/").unwrap().0;
+		    loop {
+			let msg = ws.read_message().unwrap().into_text().unwrap();
+			// we'll remove numbers from the list once we
+			// 'hear' them in the channel
+			if !hash.contains_key(&msg) {
+			    panic!("Got key {} that wasn't in the map");
+			} else {
+			    hash.remove(&msg);
+			}
+		    }
+		});
+
+	// let the listener above get situated before we begin
+	std::thread::sleep(Duration::new(0,500));
+	
+	// launch x number of threads, passing in the random number they
+	// will write to the server.
+	let mut threads = Vec::new();
+	for _ in 0..max {
+	    let num = list.pop().unwrap();
+	    threads.push(spawn ( move || {
+		let mut ws = connect("ws://localhost:9001/").unwrap().0;
+		ws.write_message(Message::Text(num)).unwrap();
+		ws.write_pending();
+	    }));
+	}
+	    
+	// wait for threads to finish
+	let x = threads.len();
+	for _ in 0..x {
+	    let t = threads.pop().unwrap();
+	    t.join().unwrap();
+	}
+
+	listener.join().unwrap();
+	// check all the threads were heard by listener
+//	assert_eq!(0, hash_c.len());
+    }
 }
