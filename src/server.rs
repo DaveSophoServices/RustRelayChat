@@ -13,6 +13,7 @@ pub fn core (
 
     loop {
 	if *shutdown.read().unwrap() != 0 {
+	    println!("Shutting down main loop");
 	    break;
 	}
 	let mut done_something = false;

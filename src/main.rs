@@ -189,7 +189,7 @@ mod tests {
     
     #[test]
     fn load_test() {
-	let max = 5;
+	let max = 500;
 	// start the server for 30 seconds
 	spawn ( || { run(30); } );
 	// build a list of x number of random numbers
