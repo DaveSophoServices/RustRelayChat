@@ -74,7 +74,7 @@ fn run(timer: u64) {
 		    match recv_res {
 			// send it to the central thread
 			Ok(recv_msg) => {
-			    dbg!(format!("[{}] Writing to websocket", c_addr));
+			    //dbg!(format!("[{}] Writing to websocket", c_addr));
 			    match websocket.write_message(recv_msg) {
 				Err(Error::ConnectionClosed) => break,
 				Err(x) => {
@@ -223,6 +223,9 @@ mod tests {
 			} else {
 			    hash.remove(&msg);
 			}
+			if hash.len() == 0 {
+			    break;
+			}
 		    }
 		});
 
@@ -238,6 +241,7 @@ mod tests {
 		let mut ws = connect("ws://localhost:9001/").unwrap().0;
 		ws.write_message(Message::Text(num)).unwrap();
 		ws.write_pending();
+		std::thread::sleep(Duration::new(5,0));
 	    }));
 	}
 	    

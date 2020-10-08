@@ -9,7 +9,7 @@ pub fn core (
 ) {
     let mut central_outgoing: Vec<mpsc::Sender<tungstenite::Message>> = Vec::new();
     // we may want to remove
-    let channels_to_be_removed = Vec::new();
+    let mut channels_to_be_removed = Vec::new();
 
     loop {
 	if *shutdown.read().unwrap() != 0 {
@@ -22,8 +22,8 @@ pub fn core (
 		println!("* {}", recv_msg);
 
 		let mut i = 0;
+		println!("* Sending msg '{}' to {} channels", recv_msg, central_outgoing.len());
 		for tx in &central_outgoing {
-		    println!("* Sending msg '{}'", recv_msg);
 		    match tx.send(recv_msg.clone()) {
 			Ok(x) => (),
 			Err(x) => {
@@ -47,14 +47,14 @@ pub fn core (
 		done_something = true;
 	    },
 	    Err(mpsc::TryRecvError::Empty) => (),
-	    Err(mpsc::TryRecvError::Disconnected) => println!("central recv disconnected"),
+	    Err(mpsc::TryRecvError::Disconnected) => println!("central recv disconnected - all the clients gone?"),
 	}
 
 	// any new transmit clients
 	match newch_rx.try_recv() {
 	    Ok(new_channel) => {
 		central_outgoing.push(new_channel);
-		println!("* received a send channel");
+		//println!("* received a send channel");
 		done_something = true;
 	    },
 	    Err(mpsc::TryRecvError::Empty) => (),
