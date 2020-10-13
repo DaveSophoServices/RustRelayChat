@@ -2,6 +2,7 @@ use std::net::TcpListener;
 use std::thread::spawn;
 use tungstenite::server::accept;
 use tungstenite::error::Error;
+use tungstenite::protocol::Message;
 use std::sync::{Arc,RwLock,mpsc};
 use std::time::Duration;
 
@@ -101,11 +102,38 @@ fn run(timer: u64) {
 		match msg_res {
 		    Ok(msg) => {
 			dbg!(format!("[{}] Sending msg to channel", addr));
-			match tx_clone.send(msg) {
-			    Ok(_) => (),
-			    Err(x) => {
-				println!("ERR: unable to send msg to central: {}", x);
-			    },
+			// has the message been handled as a command
+			let mut handled = false;
+			// handle the message if it's a command
+			match msg.to_text() {
+			    Ok(x) => {
+				if x.starts_with('/') {
+				    dbg!(x);
+				    match x {
+					"/QUIT" => {
+					    // we're going to close out
+					    println!("[{}] Going to close connection", addr);
+					    websocket_recv.write_message(Message::Text("** Going to close connection".to_string()));
+					}
+					_ => {
+					    println!("[{}] unknown command: {}", addr, x);
+					}
+				    }
+				    // assume we've handled it
+				    handled = true;
+				}
+			    }
+			    Err(_) => { println!("[{}] Couldn't convert message to str", addr);
+			    }
+			}
+			// don't print handled commands to central command.
+			if !handled {
+			    match tx_clone.send(msg) {
+				Ok(_) => (),
+				Err(x) => {
+				    println!("ERR: unable to send msg to central: {}", x);
+				},
+			    }
 			}
 		    },
 		    Err(Error::ConnectionClosed) => {
@@ -189,9 +217,9 @@ mod tests {
     
     #[test]
     fn load_test() {
-	let max = 500;
+	let max = 1000;
 	// start the server for 30 seconds
-	spawn ( || { run(30); } );
+	spawn ( || { run(60); } );
 	// build a list of x number of random numbers
 
 	// let the listener above get situated before we begin
@@ -241,7 +269,8 @@ mod tests {
 		let mut ws = connect("ws://localhost:9001/").unwrap().0;
 		ws.write_message(Message::Text(num)).unwrap();
 		ws.write_pending();
-		std::thread::sleep(Duration::new(5,0));
+		std::thread::sleep(Duration::new(50,0));
+		ws.close();
 	    }));
 	}
 	    
