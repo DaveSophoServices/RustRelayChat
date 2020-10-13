@@ -22,9 +22,8 @@ pub fn core (
 	    Ok(recv_msg) => {
 		println!("* {}", recv_msg);
 
-		let mut i = 0;
 		println!("* Sending msg '{}' to {} channels", recv_msg, central_outgoing.len());
-		for tx in &central_outgoing {
+		for (i,tx) in central_outgoing.iter().enumerate() {
 		    match tx.send(recv_msg.clone()) {
 			Ok(x) => (),
 			Err(x) => {
@@ -32,7 +31,6 @@ pub fn core (
 			    channels_to_be_removed.push(i);
 			},
 		    }
-		    i+=1;
 		}
 		if ! channels_to_be_removed.is_empty() {
 		    loop {
