@@ -189,7 +189,7 @@ mod tests {
     
     use std::sync::{Arc,Mutex};
     use std::thread::spawn;
-    use tungstenite::client::connect;
+    use tungstenite::client::{client,connect};
     use tungstenite::Message;
     
     #[test]
@@ -310,14 +310,19 @@ mod tests {
 
 	std::thread::sleep(Duration::new(1,500));
 
-	let mut ws = connect("ws://localhost:9001/").unwrap().0;
+	// one second timeout on reading
+	let strm = std::net::TcpStream::connect("localhost:9001").unwrap();
+	strm.set_read_timeout(Some(Duration::new(1,0)));
+
+	let mut ws = client("ws://localhost:9001/", strm).unwrap().0;
 	ws.write_message(Message::Text("/QUIT".to_string())).unwrap();
 	ws.write_pending();
+
 	loop {
 	    match ws.read_message() {
 		Ok(x) => { println!("returned message: '{}'", x.into_text().unwrap()); }
 		Err(x) => {
-		    println!("returned error: {}", x);
+		    println!("returned error: {}:{}", type_of(&x), x);
 		    break;
 		}
 	    }
