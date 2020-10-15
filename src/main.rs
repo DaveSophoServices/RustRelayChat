@@ -289,7 +289,6 @@ mod tests {
 		ws.write_message(Message::Text(num)).unwrap();
 		ws.write_pending();
 		std::thread::sleep(Duration::new(50,0));
-		ws.close();
 	    }));
 	}
 	    
@@ -304,4 +303,31 @@ mod tests {
 	// check all the threads were heard by listener
 //	assert_eq!(0, hash_c.len());
     }
+    #[test]
+    fn connect_write_close_test() {
+	// start the server
+	spawn ( || { run(10); } );
+
+	std::thread::sleep(Duration::new(1,500));
+
+	let mut ws = connect("ws://localhost:9001/").unwrap().0;
+	ws.write_message(Message::Text("/QUIT".to_string())).unwrap();
+	ws.write_pending();
+	loop {
+	    match ws.read_message() {
+		Ok(x) => { println!("returned message: '{}'", x.into_text().unwrap()); }
+		Err(x) => {
+		    println!("returned error: {}", x);
+		    break;
+		}
+	    }
+	}
+	
+	// try writing a new message
+	match ws.write_message(Message::Text("Am I connected".to_string())) {
+	    Ok(_) => { panic!("Websocket appears to still be connected"); },
+	    Err(_) => () // that's ok :-)
+	}
+    }
+	
 }
