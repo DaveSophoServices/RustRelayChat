@@ -92,6 +92,7 @@ fn run(timer: u64) {
 			},
 		    }
 		}
+		println!("[{}] closed write loop", c_addr);
 	    });
 		   
 	    loop {
@@ -114,6 +115,7 @@ fn run(timer: u64) {
 					    // we're going to close out
 					    println!("[{}] Going to close connection", addr);
 					    websocket_recv.write_message(Message::Text("** Going to close connection".to_string()));
+					    websocket_recv.write_message(Message::Close(None));
 					}
 					_ => {
 					    println!("[{}] unknown command: {}", addr, x);
@@ -150,12 +152,12 @@ fn run(timer: u64) {
 		    },
 		}
 
-
 		
 		// if msg.is_binary() || msg.is_text() {
 		//     
 		// }
 	    }
+	    println!("[{}] closed Read loop", addr);
 	});
     }
 }
