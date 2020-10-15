@@ -40,13 +40,16 @@ fn run(timer: u64) {
 	    *n = 1;
 	});
     }
-	   
+
+    let channel_read_duration = Duration::from_secs(1);
+    
     for stream in server.incoming() {
-	let tx_clone = tx.clone();
-	let (tx2, rx2) = mpsc::channel();
 	let shutdown = shutdown.clone();
 
 	let stream_unwrapped = stream.unwrap();
+
+	let tx_clone = tx.clone();
+	let (tx2, rx2) = mpsc::channel();
 	newch_tx.send(tx2).unwrap();
 	spawn (move || {
 	    let addr = stream_unwrapped.peer_addr().unwrap();
@@ -62,6 +65,9 @@ fn run(timer: u64) {
 		    None
 		);
 
+	    let pair_shutdown = Arc::new(RwLock::new(0));
+	    let c_pair_shutdown = pair_shutdown.clone();
+	    
 	    let c_shutdown = shutdown.clone();
 	    let c_addr = addr.clone();
 	    spawn (move || {
@@ -70,8 +76,11 @@ fn run(timer: u64) {
 		    if *c_shutdown.read().unwrap() != 0 {
 			break;
 		    }
+		    if *c_pair_shutdown.read().unwrap() != 0 {
+			break;
+		    }
 		    
-		    let recv_res = rx2.recv();
+		    let recv_res = rx2.recv_timeout(channel_read_duration);
 		    match recv_res {
 			// send it to the central thread
 			Ok(recv_msg) => {
@@ -86,7 +95,8 @@ fn run(timer: u64) {
 				Ok(x) => (),
 			    }
 			},
-			Err(mpsc::RecvError) => {
+			Err(mpsc::RecvTimeoutError::Timeout) => (),
+			Err(mpsc::RecvTimeoutError::Disconnected) => {
 			    println!("rx2 disconnect");
 			    break;
 			},
@@ -99,6 +109,10 @@ fn run(timer: u64) {
 		if *shutdown.read().unwrap() != 0 {
 		    break;
 		}
+		if *pair_shutdown.read().unwrap() != 0 {
+		    break;
+		}
+		
 		let msg_res = websocket_recv.read_message();
 		match msg_res {
 		    Ok(msg) => {
@@ -116,6 +130,9 @@ fn run(timer: u64) {
 					    println!("[{}] Going to close connection", addr);
 					    websocket_recv.write_message(Message::Text("** Going to close connection".to_string()));
 					    websocket_recv.write_message(Message::Close(None));
+					    // signal the pair thread to shutdown
+					    let mut ps = pair_shutdown.write().unwrap();
+					    *ps = 1;
 					}
 					_ => {
 					    println!("[{}] unknown command: {}", addr, x);
