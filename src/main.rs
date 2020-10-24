@@ -7,6 +7,7 @@ use std::sync::{Arc,RwLock,mpsc};
 use std::time::Duration;
 
 mod server;
+mod stats;
 
 fn main() {
     run(0);
@@ -28,8 +29,10 @@ fn run(timer: u64) {
     //    let outgoing_list: Arc<Vec<mpsc::Sender<&str>>> = Arc::new(Vec::new());
 
     let c_shutdown = shutdown.clone();
+    let s = server::Server::new(rx, newch_rx, c_shutdown);
+    let stats = s.get_stats();
     // let central_outgoing = outgoing_list.clone();
-    spawn (move || server::core(rx, newch_rx, c_shutdown));
+    s.spawn_core();
 
     if timer > 0 {
 	// this will shutdown the server in 10 seconds from starting
@@ -48,6 +51,7 @@ fn run(timer: u64) {
 
 	let stream_unwrapped = stream.unwrap();
 
+	let c_stats = stats.clone();
 	let tx_clone = tx.clone();
 	let (tx2, rx2) = mpsc::channel();
 	newch_tx.send(tx2).unwrap();
@@ -72,12 +76,24 @@ fn run(timer: u64) {
 	    let c_addr = addr.clone();
 	    spawn (move || {
 		loop {
+		    // WRITE Loop
 		    // check rx2 for messages too
 		    if *c_shutdown.read().unwrap() != 0 {
 			break;
 		    }
 		    if *c_pair_shutdown.read().unwrap() != 0 {
 			break;
+		    }
+
+		    // send the current stats
+		    match websocket.write_message(c_stats.stat_msg()) {
+		    	Err(Error::ConnectionClosed) => break,
+		    	Err(_) => {
+		    	    // we got a fatal error from the connection
+		    	    // it's probably died
+		    	    break
+		    	},
+		    	Ok(_) => (),
 		    }
 		    
 		    let recv_res = rx2.recv_timeout(channel_read_duration);
@@ -87,12 +103,12 @@ fn run(timer: u64) {
 			    //dbg!(format!("[{}] Writing to websocket", c_addr));
 			    match websocket.write_message(recv_msg) {
 				Err(Error::ConnectionClosed) => break,
-				Err(x) => {
+				Err(_) => {
 				    // we got a fatal error from the connection
 				    // it's probably died
 				    break
 				},
-				Ok(x) => (),
+				Ok(_) => (),
 			    }
 			},
 			Err(mpsc::RecvTimeoutError::Timeout) => (),
@@ -106,6 +122,7 @@ fn run(timer: u64) {
 	    });
 		   
 	    loop {
+		// READ Loop
 		if *shutdown.read().unwrap() != 0 {
 		    break;
 		}
@@ -191,6 +208,13 @@ mod tests {
     use std::thread::spawn;
     use tungstenite::client::{client,connect};
     use tungstenite::Message;
+
+    fn ws_with_timeout() -> tungstenite::protocol::WebSocket<std::net::TcpStream> {
+	let strm = std::net::TcpStream::connect("localhost:9001").unwrap();
+	strm.set_read_timeout(Some(Duration::new(1,0)));
+
+	return client("ws://localhost:9001/", strm).unwrap().0;
+    }
     
     #[test]
     fn it_starts() {
@@ -236,7 +260,7 @@ mod tests {
     
     #[test]
     fn load_test() {
-	let max = 1000;
+	let max = 100;
 	// start the server for 30 seconds
 	spawn ( || { run(60); } );
 	// build a list of x number of random numbers
@@ -288,7 +312,7 @@ mod tests {
 		let mut ws = connect("ws://localhost:9001/").unwrap().0;
 		ws.write_message(Message::Text(num)).unwrap();
 		ws.write_pending();
-		std::thread::sleep(Duration::new(50,0));
+		std::thread::sleep(Duration::new(5,0));
 	    }));
 	}
 	    
@@ -311,10 +335,7 @@ mod tests {
 	std::thread::sleep(Duration::new(1,500));
 
 	// one second timeout on reading
-	let strm = std::net::TcpStream::connect("localhost:9001").unwrap();
-	strm.set_read_timeout(Some(Duration::new(1,0)));
-
-	let mut ws = client("ws://localhost:9001/", strm).unwrap().0;
+	let mut ws = ws_with_timeout();
 	ws.write_message(Message::Text("/QUIT".to_string())).unwrap();
 	ws.write_pending();
 
@@ -333,6 +354,19 @@ mod tests {
 	    Ok(_) => { panic!("Websocket appears to still be connected"); },
 	    Err(_) => () // that's ok :-)
 	}
+    }
+
+    #[test]
+    fn stats_info() {
+	spawn ( || { run(10); } );
+	std::thread::sleep(Duration::new(1,500));
+	let mut ws = ws_with_timeout();
+
+	// connect to the server and it should tell us how many people are connected
+	let msg = ws.read_message().unwrap();
+	assert_eq!(msg.into_text().unwrap(), r#"!*STAT {"users":1}"#);
+	ws.write_message(Message::Text("/QUIT".to_string())).unwrap();
+	std::thread::sleep(Duration::new(1,0));
     }
 	
 }

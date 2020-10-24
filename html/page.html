@@ -3,30 +3,46 @@
     <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
     <script type="text/javascript">
-        function log(msg) {
-            $('#log').text($('#log').text() + msg + "\n");
-        }
-        $(function () {
-            var ws = new WebSocket('ws://localhost:9001/');
-            ws.onopen = function () {
-                log('connected');
-            };
-            ws.onclose = function (ev) {
-                log('closed');
-            };
-            ws.onmessage = function (ev) {
-                log('received: ' + ev.data);
-                $('#message').val('');
-            };
-            ws.onerror = function (ev) {
-                console.log(ev);
-                log('error: ' + ev.data);
-            };
-            $('#form').submit(function () {
-                ws.send($('#message').val());
-                return false;
-            });
-        });
+     function log(msg) {
+         $('#log').text($('#log').text() + msg + "\n");
+     }
+     function updateField(f, t) {
+	 document.querySelector(f).innerText=t;
+     }
+     function parseStat(stats) {
+	 try {
+	     x = JSON.parse(stats);
+	     updateField("#users", x.num_users);
+	 } catch(err) {
+	     console.log("invalid data from server: " + err);
+	 }
+     }
+     $(function () {
+         var ws = new WebSocket('ws://localhost:9001/');
+         ws.onopen = function () {
+             log('connected');
+         };
+         ws.onclose = function (ev) {
+             log('closed');
+         };
+         ws.onmessage = function (ev) {
+	     if (ev.data.startsWith('!*STAT ')) {
+		 // information
+		 parseStat(ev.data);
+	     } 
+             log('received: ' + ev.data);
+         };
+         ws.onerror = function (ev) {
+             console.log(ev);
+             log('error: ' + ev.data);
+         };
+         $('#form').submit(function () {
+             ws.send($('#message').val());
+             $('#message').val('');
+             return false;
+         });
+     });
+      
     </script>
     </head>
     <body>
