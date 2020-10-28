@@ -17,7 +17,7 @@ fn run(timer: u64) {
     let shutdown = Arc::new(RwLock::new(0));
 
     let server = 
-	match TcpListener::bind("127.0.0.1:9001") {
+	match TcpListener::bind("0.0.0.0:9001") {
 	    Ok(x) => x,
 	    Err(x) => panic!("Cannot listen on port 9001: {}", x),
 	};
@@ -75,6 +75,7 @@ fn run(timer: u64) {
 	    let c_shutdown = shutdown.clone();
 	    let c_addr = addr.clone();
 	    spawn (move || {
+		let mut stat_version: u32 = 0xFFFFFFFF;
 		loop {
 		    // WRITE Loop
 		    // check rx2 for messages too
@@ -85,15 +86,18 @@ fn run(timer: u64) {
 			break;
 		    }
 
-		    // send the current stats
-		    match websocket.write_message(c_stats.stat_msg()) {
-		    	Err(Error::ConnectionClosed) => break,
-		    	Err(_) => {
-		    	    // we got a fatal error from the connection
-		    	    // it's probably died
-		    	    break
-		    	},
-		    	Ok(_) => (),
+		    if (c_stats.ver() != stat_version) {
+			// send the current stats
+			stat_version = c_stats.ver();
+			match websocket.write_message(c_stats.stat_msg()) {
+		    	    Err(Error::ConnectionClosed) => break,
+		    	    Err(_) => {
+		    		// we got a fatal error from the connection
+		    		// it's probably died
+		    		break
+		    	    },
+		    	    Ok(_) => (),
+			}
 		    }
 		    
 		    let recv_res = rx2.recv_timeout(channel_read_duration);

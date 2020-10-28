@@ -2,6 +2,10 @@ use std::sync::RwLock;
 
 struct InternalStats {
     num_clients: usize,
+    // ver is an continually incrementing unsigned 32. Each time our
+    // struct is updated, so is ver. It doesn't matter if ver wraps,
+    // as the calling code should check for !=, rather than > or <
+    ver: u32,
 }
 
 pub struct Stats {
@@ -14,6 +18,7 @@ impl Stats {
 	    int: RwLock::new(
 		InternalStats {
 		    num_clients: 0,
+		    ver: 0,
 		}),
 	}
     }
@@ -25,8 +30,17 @@ impl Stats {
     }
     pub fn set_num_clients(&self, num:usize) {
 	match self.int.write() {
-	    Ok(mut s) => s.num_clients = num,
+	    Ok(mut s) => {
+		s.ver += 1;
+		s.num_clients = num;
+	    },
 	    Err(_) => (),
+	}
+    }
+    pub fn ver(&self) -> u32 {
+	match self.int.read() {
+	    Ok(s) => s.ver,
+	    Err(_) => 0,
 	}
     }
     pub fn stat_msg(&self) -> tungstenite::Message {
