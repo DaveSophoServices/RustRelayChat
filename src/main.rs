@@ -80,9 +80,11 @@ fn run(timer: u64) {
 		    // WRITE Loop
 		    // check rx2 for messages too
 		    if *c_shutdown.read().unwrap() != 0 {
+			debug!("[{}] shutdown due to global shutdown", c_addr);
 			break;
 		    }
 		    if *c_pair_shutdown.read().unwrap() != 0 {
+			debug!("[{}] Shutdown due to pair_shutdown", c_addr);
 			break;
 		    }
 
@@ -91,9 +93,10 @@ fn run(timer: u64) {
 			stat_version = c_stats.ver();
 			match websocket.write_message(c_stats.stat_msg()) {
 		    	    Err(Error::ConnectionClosed) => break,
-		    	    Err(_) => {
+		    	    Err(e) => {
 		    		// we got a fatal error from the connection
 		    		// it's probably died
+				debug!("[{}] shutdown due to websocket error: {}", c_addr,e);
 		    		break
 		    	    },
 		    	    Ok(_) => (),
@@ -106,9 +109,10 @@ fn run(timer: u64) {
 			Ok(recv_msg) => {
 			    match websocket.write_message(recv_msg) {
 				Err(Error::ConnectionClosed) => break,
-				Err(_) => {
+				Err(e) => {
 				    // we got a fatal error from the connection
 				    // it's probably died
+				    debug!("[{}] shutdown due to websocket write error: {}", c_addr, e);
 				    break
 				},
 				Ok(_) => (),
@@ -116,7 +120,7 @@ fn run(timer: u64) {
 			},
 			Err(mpsc::RecvTimeoutError::Timeout) => (),
 			Err(mpsc::RecvTimeoutError::Disconnected) => {
-			    debug!("rx2 disconnect");
+			    debug!("[{}] rx2 disconnect", c_addr);
 			    break;
 			},
 		    }
@@ -127,24 +131,30 @@ fn run(timer: u64) {
 	    loop {
 		// READ Loop
 		if *shutdown.read().unwrap() != 0 {
+		    debug!("[{}] shutdown due to global shutdown", addr);
 		    break;
 		}
 		if *pair_shutdown.read().unwrap() != 0 {
+		    debug!("[{}] shutdown due to pair shutdown", addr);
 		    break;
 		}
 		
 		let msg_res = websocket_recv.read_message();
 		match msg_res {
 		    Ok(msg) => {
-			debug!("[{}] Sending msg to channel", addr);
-			// has the message been handled as a command
-			let mut handled = false;
-			// handle the message if it's a command
-			match msg.to_text() {
-			    Ok(x) => {
-				if x.starts_with('/') {
-				    debug!("[{}] {} command", addr, x);
-				    match x {
+			match msg {
+			    Message::Close(_) => (),
+			    Message::Binary(_) => (),
+			    Message::Ping(_) => (),
+			    Message::Pong(_) => (),
+			    Message::Text(msg) => {
+				debug!("[{}] Sending msg ({:?}) to channel", addr, msg);
+				// has the message been handled as a command
+				let mut handled = false;
+				// handle the message if it's a command
+				if msg.starts_with('/') {
+				    debug!("[{}] {} command", addr, msg);
+				    match msg.as_str() {
 					"/QUIT" => {
 					    // we're going to close out
 					    debug!("[{}] Going to close connection", addr);
@@ -155,23 +165,21 @@ fn run(timer: u64) {
 					    *ps = 1;
 					}
 					_ => {
-					    warn!("[{}] unknown command: {}", addr, x);
+					    warn!("[{}] unknown command: {}", addr, msg);
 					}
 				    }
 				    // assume we've handled it
 				    handled = true;
 				}
-			    }
-			    Err(_) => { error!("[{}] Couldn't convert message to str", addr);
-			    }
-			}
-			// don't print handled commands to central command.
-			if !handled {
-			    match tx_clone.send(msg) {
-				Ok(_) => (),
-				Err(x) => {
-				    error!("unable to send msg to central: {}", x);
-				},
+				// don't print handled commands to central command.
+				if !handled {
+				    match tx_clone.send(Message::Text(msg)) {
+					Ok(_) => (),
+					Err(x) => {
+					    error!("unable to send msg to central: {}", x);
+					},
+				    }
+				}
 			    }
 			}
 		    },
