@@ -21,7 +21,7 @@ fn run(timer: u64) {
 	    Ok(x) => x,
 	    Err(x) => panic!("Cannot listen on port 9001: {}", x),
 	};
-    
+    info!("Listening on port 9001");
     // this channel will be used by clients to put their messages when
     // they receive them from the user
     let (tx,rx) = mpsc::channel();
@@ -86,7 +86,7 @@ fn run(timer: u64) {
 			break;
 		    }
 
-		    if (c_stats.ver() != stat_version) {
+		    if c_stats.ver() != stat_version {
 			// send the current stats
 			stat_version = c_stats.ver();
 			match websocket.write_message(c_stats.stat_msg()) {
