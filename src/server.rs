@@ -2,6 +2,7 @@ use std::sync::{mpsc,Arc,RwLock};
 use std::time::Duration;
 use tungstenite::Message;
 use std::thread::spawn;
+use log::{trace,debug,info,warn,error};
 
 use crate::stats::Stats;
 
@@ -41,16 +42,16 @@ impl Server {
 
 	loop {
 	    if *self.shutdown.read().unwrap() != 0 {
-		println!("Shutting down main loop");
+		warn!("Shutting down main loop");
 		break;
 	    }
 	    let mut done_something = false;
 	    
 	    match self.rx.try_recv() {
 		Ok(recv_msg) => {
-		    println!("* {}", recv_msg);
+		    debug!("* {}", recv_msg);
 
-		    println!("* Sending msg '{}' to {} channels", recv_msg, self.stats.num_clients());
+		    info!("* Sending msg '{}' to {} channels", recv_msg, self.stats.num_clients());
 		    for (i,tx) in self.central_outgoing.iter().enumerate() {
 			match tx.send(recv_msg.clone()) {
 			    Ok(_) => (),
@@ -64,7 +65,7 @@ impl Server {
 			loop {
 			    match channels_to_be_removed.pop() {
 				Some(x) => {
-				    dbg!("Dropping tx channel");
+				    debug!("Dropping tx channel");
 				    self.central_outgoing.remove(x);
 				},
 				None => break, // from loop
@@ -74,7 +75,7 @@ impl Server {
 		    done_something = true;
 		},
 		Err(mpsc::TryRecvError::Empty) => (),
-		Err(mpsc::TryRecvError::Disconnected) => println!("central recv disconnected - all the clients gone?"),
+		Err(mpsc::TryRecvError::Disconnected) => warn!("central recv disconnected - all the clients gone?"),
 	    }
 
 	    // any new transmit clients
@@ -86,13 +87,13 @@ impl Server {
 		    done_something = true;
 		},
 		Err(mpsc::TryRecvError::Empty) => (),
-		Err(mpsc::TryRecvError::Disconnected) => println!("new channel recv disconnected"),
+		Err(mpsc::TryRecvError::Disconnected) => debug!("new channel recv disconnected"),
 	    }
 
 	    if !done_something {
 		std::thread::sleep(Duration::new(0,500));
 	    } else {
-		println!("* not sleeping");
+		debug!("* not sleeping");
 	    }
 	}
     }	

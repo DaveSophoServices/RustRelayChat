@@ -1,15 +1,15 @@
 use std::net::TcpListener;
 use std::thread::spawn;
-use tungstenite::server::accept;
-use tungstenite::error::Error;
-use tungstenite::protocol::Message;
+use tungstenite::{server::accept,error::Error,protocol::Message};
 use std::sync::{Arc,RwLock,mpsc};
 use std::time::Duration;
 
 mod server;
 mod stats;
+use log::{trace,debug,info,warn,error};
 
 fn main() {
+    init_log();
     run(0);
 }
 
@@ -57,7 +57,7 @@ fn run(timer: u64) {
 	newch_tx.send(tx2).unwrap();
 	spawn (move || {
 	    let addr = stream_unwrapped.peer_addr().unwrap();
-	    dbg!(format!("new connection: {}", addr));
+	    info!("new connection: {}", addr);
 	    
 	    let stream_clone = stream_unwrapped.try_clone();
 	    let mut websocket = accept(stream_unwrapped).unwrap();
@@ -104,7 +104,6 @@ fn run(timer: u64) {
 		    match recv_res {
 			// send it to the central thread
 			Ok(recv_msg) => {
-			    //dbg!(format!("[{}] Writing to websocket", c_addr));
 			    match websocket.write_message(recv_msg) {
 				Err(Error::ConnectionClosed) => break,
 				Err(_) => {
@@ -117,12 +116,12 @@ fn run(timer: u64) {
 			},
 			Err(mpsc::RecvTimeoutError::Timeout) => (),
 			Err(mpsc::RecvTimeoutError::Disconnected) => {
-			    println!("rx2 disconnect");
+			    debug!("rx2 disconnect");
 			    break;
 			},
 		    }
 		}
-		println!("[{}] closed write loop", c_addr);
+		debug!("[{}] closed write loop", c_addr);
 	    });
 		   
 	    loop {
@@ -137,18 +136,18 @@ fn run(timer: u64) {
 		let msg_res = websocket_recv.read_message();
 		match msg_res {
 		    Ok(msg) => {
-			dbg!(format!("[{}] Sending msg to channel", addr));
+			debug!("[{}] Sending msg to channel", addr);
 			// has the message been handled as a command
 			let mut handled = false;
 			// handle the message if it's a command
 			match msg.to_text() {
 			    Ok(x) => {
 				if x.starts_with('/') {
-				    dbg!(x);
+				    debug!("[{}] {} command", addr, x);
 				    match x {
 					"/QUIT" => {
 					    // we're going to close out
-					    println!("[{}] Going to close connection", addr);
+					    debug!("[{}] Going to close connection", addr);
 					    websocket_recv.write_message(Message::Text("** Going to close connection".to_string()));
 					    websocket_recv.write_message(Message::Close(None));
 					    // signal the pair thread to shutdown
@@ -156,14 +155,14 @@ fn run(timer: u64) {
 					    *ps = 1;
 					}
 					_ => {
-					    println!("[{}] unknown command: {}", addr, x);
+					    warn!("[{}] unknown command: {}", addr, x);
 					}
 				    }
 				    // assume we've handled it
 				    handled = true;
 				}
 			    }
-			    Err(_) => { println!("[{}] Couldn't convert message to str", addr);
+			    Err(_) => { error!("[{}] Couldn't convert message to str", addr);
 			    }
 			}
 			// don't print handled commands to central command.
@@ -171,21 +170,21 @@ fn run(timer: u64) {
 			    match tx_clone.send(msg) {
 				Ok(_) => (),
 				Err(x) => {
-				    println!("ERR: unable to send msg to central: {}", x);
+				    error!("unable to send msg to central: {}", x);
 				},
 			    }
 			}
 		    },
 		    Err(Error::ConnectionClosed) => {
-			println!("[{}] websocket closed", addr);
+			info!("[{}] websocket closed", addr);
 			break; // from loop
 		    },
 		    Err(Error::AlreadyClosed) => {
-			println!("[{}] websocket already closed", addr);
+			info!("[{}] websocket already closed", addr);
 			break; // from loop
 		    },
 		    Err(x) => {
-			println!("[{}] websocket error: ({}) {}", addr, type_of(&x), x);
+			info!("[{}] websocket error: ({}) {}", addr, type_of(&x), x);
 			break; // from loop
 		    },
 		}
@@ -195,7 +194,7 @@ fn run(timer: u64) {
 		//     
 		// }
 	    }
-	    println!("[{}] closed Read loop", addr);
+	    info!("[{}] closed Read loop", addr);
 	});
     }
 }
@@ -373,4 +372,18 @@ mod tests {
 	std::thread::sleep(Duration::new(1,0));
     }
 	
+}
+
+fn init_log() {
+    simplelog::CombinedLogger::init(
+	vec![
+	    simplelog::TermLogger::new(
+		simplelog::LevelFilter::Debug,
+		simplelog::Config::default(),
+		simplelog::TerminalMode::Mixed),
+	    simplelog::WriteLogger::new(
+		simplelog::LevelFilter::Info,
+		simplelog::Config::default(),
+		std::fs::File::create("chat.log").unwrap()),
+	]).unwrap();
 }
