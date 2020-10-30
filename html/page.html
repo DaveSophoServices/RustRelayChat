@@ -10,7 +10,7 @@
 	    <section class="row">
 		<form id="form">
 		    <input type="text" name="message" id="message">
-		    <input type="submit">
+		    <input type="submit" value="Send">
 		</form>
 	    </section>
 	    <section class="row">
@@ -37,7 +37,8 @@
 	     }
 	 }      
 
-	 var ws = new WebSocket('ws://chat.sophoservices.com:9001/');
+	 //var ws = new WebSocket('ws://chat.sophoservices.com:9001/');
+	 var ws = new WebSocket('ws://localhost:9001/');
 	 ws.onopen = function () {
 	     log('connected');
 	 };
@@ -58,11 +59,11 @@
 	     log('error: ' + ev.data);
          };
 	 document.querySelector('#form')
-		 .addEventListener('submit', function () {
+		 .addEventListener('submit', function (evt) {
 		     msg = document.querySelector("#message");
-		     ws.send(msg.val());
-		     msg.val('');
-		     return false;
+		     ws.send(msg.value);
+		     msg.value='';
+		     evt.preventDefault();
 		 } );
 	 
 	</script>
