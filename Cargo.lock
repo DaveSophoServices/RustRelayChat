@@ -361,6 +361,7 @@ dependencies = [
 name = "rust-relay-chat"
 version = "0.1.0"
 dependencies = [
+ "http",
  "log",
  "simplelog",
  "tungstenite",

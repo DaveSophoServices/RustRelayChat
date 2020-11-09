@@ -1,11 +1,13 @@
 use std::net::TcpListener;
 use std::thread::spawn;
-use tungstenite::{server::accept,error::Error,protocol::Message};
+use tungstenite::{server::accept_hdr,error::Error,protocol::Message};
 use std::sync::{Arc,RwLock,mpsc};
 use std::time::Duration;
 
 mod server;
 mod stats;
+mod websocket_headers;
+
 use log::{trace,debug,info,warn,error};
 
 fn main() {
@@ -60,7 +62,12 @@ fn run(timer: u64) {
 	    info!("new connection: {}", addr);
 	    
 	    let stream_clone = stream_unwrapped.try_clone();
-	    let mut websocket = accept(stream_unwrapped).unwrap();
+	    let ws_hdr_cb = websocket_headers::new_callback();
+	    let ws_hdr = ws_hdr_cb.hdr();
+	    let mut websocket = accept_hdr(
+		stream_unwrapped, ws_hdr_cb
+	    ).unwrap();
+	    debug!("{:#?}", ws_hdr);
 	    //websocket.get_ref().set_read_timeout(Some(Duration::new(0,100))).unwrap();
 	    let mut websocket_recv =
 		tungstenite::protocol::WebSocket::from_raw_socket(
