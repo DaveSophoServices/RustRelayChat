@@ -16,8 +16,6 @@ fn main() {
 }
 
 fn run(timer: u64) {
-    let shutdown = Arc::new(RwLock::new(0));
-
     let server = 
 	match TcpListener::bind("0.0.0.0:9001") {
 	    Ok(x) => x,
@@ -26,19 +24,20 @@ fn run(timer: u64) {
     info!("Listening on port 9001");
     // this channel will be used by clients to put their messages when
     // they receive them from the user
-    let (tx,rx) = mpsc::channel();
-    let (newch_tx, newch_rx) = mpsc::channel();
+    let main_server = server::Server::new();
+    
+    //let (tx,rx) = mpsc::channel();
+    //let (newch_tx, newch_rx) = mpsc::channel();
     //    let outgoing_list: Arc<Vec<mpsc::Sender<&str>>> = Arc::new(Vec::new());
 
-    let c_shutdown = shutdown.clone();
-    let s = server::Server::new(rx, newch_rx, c_shutdown);
-    let stats = s.get_stats();
+    //let s = server::Server::new(rx, newch_rx, c_shutdown);
+    //let stats = s.get_stats();
     // let central_outgoing = outgoing_list.clone();
-    s.spawn_core();
+    //s.spawn_core();
 
     if timer > 0 {
 	// this will shutdown the server in 10 seconds from starting
-	let c_shutdown = shutdown.clone();
+	let c_shutdown = main_server.shutdown_ref();
 	spawn (move || {
 	    std::thread::sleep(Duration::new(timer,0));
 	    let mut n = c_shutdown.write().unwrap();
@@ -49,14 +48,9 @@ fn run(timer: u64) {
     let channel_read_duration = Duration::from_secs(1);
     
     for stream in server.incoming() {
-	let shutdown = shutdown.clone();
-
 	let stream_unwrapped = stream.unwrap();
 
-	let c_stats = stats.clone();
-	let tx_clone = tx.clone();
-	let (tx2, rx2) = mpsc::channel();
-	newch_tx.send(tx2).unwrap();
+	let main_server = main_server.clone(); 
 	spawn (move || {
 	    let addr = stream_unwrapped.peer_addr().unwrap();
 	    info!("new connection: {}", addr);
@@ -75,12 +69,16 @@ fn run(timer: u64) {
 		    tungstenite::protocol::Role::Server,
 		    None
 		);
-
+	    let ch = main_server.get(ws_hdr);
+	    let (tx2,rx2) = ch.get_tx_rx();
+	    
 	    let pair_shutdown = Arc::new(RwLock::new(0));
 	    let c_pair_shutdown = pair_shutdown.clone();
-	    
+
+	    let shutdown = main_server.shutdown_ref();
 	    let c_shutdown = shutdown.clone();
 	    let c_addr = addr.clone();
+	    let stats = ch.get_stats();
 	    spawn (move || {
 		let mut stat_version: u32 = 0xFFFFFFFF;
 		loop {
@@ -95,10 +93,10 @@ fn run(timer: u64) {
 			break;
 		    }
 
-		    if c_stats.ver() != stat_version {
+		    if stats.ver() != stat_version {
 			// send the current stats
-			stat_version = c_stats.ver();
-			match websocket.write_message(c_stats.stat_msg()) {
+			stat_version = stats.ver();
+			match websocket.write_message(stats.stat_msg()) {
 		    	    Err(Error::ConnectionClosed) => break,
 		    	    Err(e) => {
 		    		// we got a fatal error from the connection
@@ -180,7 +178,7 @@ fn run(timer: u64) {
 				}
 				// don't print handled commands to central command.
 				if !handled {
-				    match tx_clone.send(Message::Text(msg)) {
+				    match tx2.send(Message::Text(msg)) {
 					Ok(_) => (),
 					Err(x) => {
 					    error!("unable to send msg to central: {}", x);

@@ -1,102 +1,45 @@
-use std::sync::{mpsc,Arc,RwLock};
-use std::time::Duration;
-use tungstenite::Message;
-use std::thread::spawn;
-use log::{debug,info,warn};
+use std::sync::{Arc,RwLock};
+use std::collections::HashMap;
+use log::{debug};
 
-use crate::stats::Stats;
+mod channel_server;
+use channel_server::ChannelServer; 
+use super::websocket_headers::WebsocketHeaders;
 
+#[derive(Clone)]
 pub struct Server {
-    central_outgoing: Vec<mpsc::Sender<Message>>,
-    rx: mpsc::Receiver<Message>,
-    newch_rx: mpsc::Receiver<mpsc::Sender<Message>>,
-    shutdown: Arc<RwLock<i32>>,
-    stats: Arc<Stats>,
+    channels: Arc<HashMap<String,ChannelServer>>,
+    shutdown: Arc<RwLock<u32>>,
 }
 
 
-// num_clients will return the number of active clients
-// should be based on the number of connections, or tx channels
+// Server holds a map of channel strings to channel servers
 impl Server {
-    pub fn new(rx: mpsc::Receiver<tungstenite::Message>,
-	   newch_rx: mpsc::Receiver<mpsc::Sender<tungstenite::Message>>,
-	   shutdown:std::sync::Arc<std::sync::RwLock<i32>>
-    ) -> Server {
+    pub fn new() -> Server {
 	Server {
-	    central_outgoing: Vec::new(),
-	    rx,
-	    newch_rx,
-	    shutdown,
-	    stats: Arc::new(Stats::new()),
+	    channels: Arc<HashMap::new()>,
+	    shutdown: Arc::new(RwLock::new(0)),
 	}
     }
-    pub fn get_stats(&self) -> Arc<Stats> {
-	return self.stats.clone();
+
+    pub fn shutdown_ref(&self) -> Arc<RwLock<u32>> {
+	self.shutdown.clone()
     }
-    pub fn spawn_core(mut self) {
-    	spawn( move || self.core() );
-    }
-    pub fn core (&mut self) {
-	// we may want to remove
-	let mut channels_to_be_removed = Vec::new();
-
-	loop {
-	    if *self.shutdown.read().unwrap() != 0 {
-		warn!("Shutting down main loop");
-		break;
-	    }
-	    let mut done_something = false;
-	    
-	    match self.rx.try_recv() {
-		Ok(recv_msg) => {
-		    debug!("* {}", recv_msg);
-
-		    info!("* Sending msg '{}' to {} channels", recv_msg, self.stats.num_clients());
-		    for (i,tx) in self.central_outgoing.iter().enumerate() {
-			match tx.send(recv_msg.clone()) {
-			    Ok(_) => (),
-			    Err(_) => {
-				// this channel is no longer good
-				channels_to_be_removed.push(i);
-			    },
-			}
-		    }
-		    if ! channels_to_be_removed.is_empty() {
-			loop {
-			    match channels_to_be_removed.pop() {
-				Some(x) => {
-				    debug!("Dropping tx channel");
-				    self.central_outgoing.remove(x);
-				},
-				None => break, // from loop
-			    };
-			}
-		    }
-		    done_something = true;
-		},
-		Err(mpsc::TryRecvError::Empty) => (),
-		Err(mpsc::TryRecvError::Disconnected) => warn!("central recv disconnected - all the clients gone?"),
-	    }
-
-	    // any new transmit clients
-	    match self.newch_rx.try_recv() {
-		Ok(new_channel) => {
-		    self.central_outgoing.push(new_channel);
-		    self.stats.set_num_clients(self.central_outgoing.len());
-		    //println!("* received a send channel");
-		    done_something = true;
-		},
-		Err(mpsc::TryRecvError::Empty) => (),
-		Err(mpsc::TryRecvError::Disconnected) => debug!("new channel recv disconnected"),
-	    }
-
-	    if !done_something {
-		std::thread::sleep(Duration::new(0,500));
-	    } else {
-		debug!("* not sleeping");
+    
+    pub fn get(&self, ws_hdr:Arc<RwLock<WebsocketHeaders>>) -> &ChannelServer{
+	let uri = match ws_hdr.read().unwrap().uri {
+	    Some(x) => x.to_string(),
+	    None => String::from(""),
+	}
+	match self.channels.get(&uri) {
+	    Some(x) => x,
+	    None => {
+		debug!("Creating new channel_server: {}", uri);
+		self.channels.insert(uri, channel_server::new());
+		self.channels.get(&uri).unwrap()
 	    }
 	}
-    }	
+    }
 }
 
 pub fn sendrecv() {
