@@ -8,7 +8,7 @@ mod server;
 mod stats;
 mod websocket_headers;
 
-use log::{trace,debug,info,warn,error};
+use log::{debug,info,warn,error};
 
 fn main() {
     init_log();

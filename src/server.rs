@@ -2,7 +2,7 @@ use std::sync::{mpsc,Arc,RwLock};
 use std::time::Duration;
 use tungstenite::Message;
 use std::thread::spawn;
-use log::{trace,debug,info,warn,error};
+use log::{debug,info,warn};
 
 use crate::stats::Stats;
 
