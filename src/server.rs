@@ -10,20 +10,15 @@ use super::websocket_headers::WebsocketHeaders;
 #[derive(Clone)]
 pub struct Server {
     shutdown: Arc<RwLock<u32>>,
+    channels: Arc<RwLock<HashMap<String,ChannelServer>>>,
 }
-
-struct ChannelList {
-    list: HashMap<String,(Arc<ChannelServer>, Arc<mpsc::Sender<tungstenite::Message>>)>,
-}
-
-static CHANNELS: RwLock<ChannelList> = RwLock::new(
-    ChannelList { list: HashMap::new(), });
 
 // Server holds a map of channel strings to channel servers
 impl Server {
     pub fn new() -> Server {
 	Server {
 	    shutdown: Arc::new(RwLock::new(0)),
+	    channels: Arc::new(RwLock::new(HashMap::new())),
 	}
     }
 
@@ -31,31 +26,25 @@ impl Server {
 	self.shutdown.clone()
     }
     
-    pub fn get(&self, ws_hdr:Arc<RwLock<WebsocketHeaders>>) -> Arc<ChannelServer>{
-	let uri = match ws_hdr.read().unwrap().uri {
+    pub fn get(&self, ws_hdr:Arc<RwLock<WebsocketHeaders>>) -> ChannelServer{
+	let uri = match &ws_hdr.read().unwrap().uri {
 	    Some(x) => x.to_string(),
 	    None => String::from(""),
 	};
-	let mut ret: Option<&Arc<ChannelServer>>;
-	let tx: &Arc<mpsc::Sender<tungstenite::Message>>;
-	if let Ok(channels) = CHANNELS.read() {
-	    if let Some((r,t)) = channels.list.get(&uri) {
-		ret = Some(r);
-		tx = t;
-	    }
-	}
-	match ret {
-	    Some(x) => x.clone(),
-	    None => {
-		debug!("Creating new channel_server: {}", uri);
-		match CHANNELS.write() {
-		    Ok(channels) => {
-			channels.list.insert(uri, channel_server::new(self.shutdown.clone(), uri));
-			channels.list.get(&uri).unwrap().0
+
+	match self.channels.write() {
+	    Ok(mut channels) => {
+		match channels.get(&uri) {
+		    Some(x) => x.clone(),
+		    None => {
+			debug!("Creating new channel_server: {}", uri);
+			let uri_key = uri.clone();
+			channels.insert(uri_key, channel_server::new(self.shutdown.clone(), &uri));
+			channels.get(&uri).unwrap().clone()
 		    },
-		    Err(_) => panic!("server::get : CHANNELS RwLock failed to write"),
 		}
-	    }
+	    },
+	    Err(_) => panic!("failed!"),
 	}
     }
 }
