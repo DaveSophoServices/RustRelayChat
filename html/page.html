@@ -6,8 +6,8 @@
     </head>
     <body>
 	<div style="padding:10px 10%;margin-bottom:10px;background-color:navy;color:white"><h1>Chat page</h1></div>
-	<div>Connect to chat channel: <input type="text" id="channel" /><button onClick="connect(getField('#channel'))">Connect</button></div>
 	<div class="container">
+	    <section class="row" style="margin-bottom:10px">Connect to chat channel: <input type="text" id="channel" style="margin-left:10px"/><button onClick="connect(getField('#channel'))">Connect</button></section>
 	    <section class="row">
 		<form id="form">
 		    <input type="text" name="message" id="message">
@@ -41,9 +41,11 @@
 	     }
 	 }      
 
+	 var ws;
+	 
 	 function connect(channel) {
 	     //var ws = new WebSocket('ws://chat.sophoservices.com:9001/');
-	     var ws = new WebSocket('ws://localhost:9001/' + channel);
+	     ws = new WebSocket('ws://localhost:9001/' + channel);
 	     ws.onopen = function () {
 		 log('connected');
 	     };
