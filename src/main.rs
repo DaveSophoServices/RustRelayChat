@@ -223,13 +223,18 @@ mod tests {
     use std::sync::{Arc,Mutex};
     use std::thread::spawn;
     use tungstenite::client::{client,connect};
-    use tungstenite::Message;
+    use tungstenite::{Message,protocol::WebSocket};
+    use std::net::TcpStream;
 
-    fn ws_with_timeout() -> tungstenite::protocol::WebSocket<std::net::TcpStream> {
-	let strm = std::net::TcpStream::connect("localhost:9001").unwrap();
+    fn ws_with_timeout() -> WebSocket<TcpStream> {
+	return ws_with_timeout_room("");
+    }
+    
+    fn ws_with_timeout_room(room: &str) -> WebSocket<TcpStream> {
+	let strm = TcpStream::connect("localhost:9001").unwrap();
 	strm.set_read_timeout(Some(Duration::new(1,0)));
 
-	return client("ws://localhost:9001/", strm).unwrap().0;
+	return client(format!("ws://localhost:9001/{}", room), strm).unwrap().0;
     }
     
     #[test]
@@ -383,6 +388,30 @@ mod tests {
 	assert_eq!(msg.into_text().unwrap(), r#"!*STAT {"users":1}"#);
 	ws.write_message(Message::Text("/QUIT".to_string())).unwrap();
 	std::thread::sleep(Duration::new(1,0));
+    }
+
+    #[test]
+    fn diff_chat_rooms() {
+	spawn ( || { run (10); } );
+	std::thread::sleep(Duration::new(1,500));
+
+	let mut ws = ws_with_timeout_room("one");
+	let mut ws2 = ws_with_timeout_room("one");
+	let mut ws3 = ws_with_timeout_room("two");
+
+	// get the STAT messages out of the way
+	let mut msg = ws.read_message().unwrap();
+	msg = ws2.read_message().unwrap();
+	msg = ws3.read_message().unwrap();
+
+	ws2.write_message(Message::Text("abc".to_string())).unwrap();
+	msg = ws.read_message().unwrap();
+	assert_eq!(msg.into_text().unwrap(), "abc");
+	match ws3.read_message() {
+	    Ok (_) => panic!("not supposed to receive a response on ws3"),
+	    Err (_) => (), // Ok, as we got a timeout
+	}
+	
     }
 	
 }
