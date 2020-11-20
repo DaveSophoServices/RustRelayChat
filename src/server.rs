@@ -1,6 +1,5 @@
 use std::sync::{Arc,RwLock};
 use std::collections::HashMap;
-use std::sync::mpsc;
 use log::{debug};
 
 mod channel_server;

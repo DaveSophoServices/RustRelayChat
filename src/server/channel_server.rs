@@ -22,7 +22,7 @@ pub fn new(shutdown:std::sync::Arc<std::sync::RwLock<u32>>,
     // core's rx and tx
     let (tx,rx) = mpsc::channel();
     
-    let mut ret = ChannelServer {
+    let ret = ChannelServer {
 	central_outgoing: Arc::new(Mutex::new(Vec::new())),
 	shutdown,
 	stats: Arc::new(Stats::new()),

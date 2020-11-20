@@ -163,8 +163,13 @@ fn run(timer: u64) {
 					"/QUIT" => {
 					    // we're going to close out
 					    debug!("[{}] Going to close connection", addr);
-					    websocket_recv.write_message(Message::Text("** Going to close connection".to_string()));
-					    websocket_recv.write_message(Message::Close(None));
+					    if let Err(e) = websocket_recv.write_message(Message::Text("** Going to close connection".to_string())) {
+						warn!("[{}] error writing goodbye message: {}", addr, e);
+					    } else {
+						if let Err(e) = websocket_recv.write_message(Message::Close(None)) {
+						    warn!("[{}] error writing close messages: {}", addr, e);
+						}
+					    }
 					    // signal the pair thread to shutdown
 					    let mut ps = pair_shutdown.write().unwrap();
 					    *ps = 1;
