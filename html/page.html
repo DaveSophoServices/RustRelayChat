@@ -6,6 +6,7 @@
     </head>
     <body>
 	<div style="padding:10px 10%;margin-bottom:10px;background-color:navy;color:white"><h1>Chat page</h1></div>
+	<div>Connect to chat channel: <input type="text" id="channel" /><button onClick="connect(getField('#channel'))">Connect</button></div>
 	<div class="container">
 	    <section class="row">
 		<form id="form">
@@ -25,6 +26,9 @@
 	     var log=document.querySelector('#log');
 	     log.innerText = log.innerText + msg + "\n";
 	 }
+	 function getField(f) {
+	     return document.querySelector(f).value;
+	 }
 	 function updateField(f, t) {
 	     document.querySelector(f).innerText=t;
 	 }
@@ -37,27 +41,29 @@
 	     }
 	 }      
 
-	 //var ws = new WebSocket('ws://chat.sophoservices.com:9001/');
-	 var ws = new WebSocket('ws://localhost:9001/mo/stl');
-	 ws.onopen = function () {
-	     log('connected');
-	 };
-	 ws.onclose = function (ev) {
-	     log('closed');
-	 };
-	 ws.onmessage = function (ev) {
-	     var d = ev.data;
-	     if (d.startsWith('!*STAT ')) {
-		 // information
-		 parseStat(d.substring(7)); // after '!* STAT '
-		 d = `__${d}__`;
-	     }
-	     log('received: ' + d);
-         };
-         ws.onerror = function (ev) {
-	     console.log(ev);
-	     log('error: ' + ev.data);
-         };
+	 function connect(channel) {
+	     //var ws = new WebSocket('ws://chat.sophoservices.com:9001/');
+	     var ws = new WebSocket('ws://localhost:9001/' + channel);
+	     ws.onopen = function () {
+		 log('connected');
+	     };
+	     ws.onclose = function (ev) {
+		 log('closed');
+	     };
+	     ws.onmessage = function (ev) {
+		 var d = ev.data;
+		 if (d.startsWith('!*STAT ')) {
+		     // information
+		     parseStat(d.substring(7)); // after '!* STAT '
+		     d = `__${d}__`;
+		 }
+		 log('received: ' + d);
+             };
+             ws.onerror = function (ev) {
+		 console.log(ev);
+		 log('error: ' + ev.data);
+             };
+	 }
 	 document.querySelector('#form')
 		 .addEventListener('submit', function (evt) {
 		     msg = document.querySelector("#message");
