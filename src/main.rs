@@ -72,10 +72,10 @@ fn run(timer: u64) {
 		    tungstenite::protocol::Role::Server,
 		    None
 		);
-	    let ch = match main_server.get(ws_hdr) {
+	    let ch = match main_server.get(ws_hdr.clone()) {
 		Some(x) => x,
 		None => {
-		    warn!("[{}] tried to create channel {} but not allowed", addr, "");
+		    warn!("[{}] tried to create channel {:?} but not allowed", addr, ws_hdr);
 		    return
 		},
 	    };
