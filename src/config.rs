@@ -13,6 +13,13 @@ pub fn parse_json(json:&str) -> Config {
     serde_json::from_str(json).expect("problem reading JSON config file")
 }
 
+pub fn default() -> Config {
+    Config {
+	port: def_port(),
+	auto_create_rooms: def_auto_create_rooms(),
+    }
+}
+
 fn def_port() -> i32 {
     9001
 }

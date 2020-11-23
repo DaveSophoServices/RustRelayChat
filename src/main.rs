@@ -448,7 +448,10 @@ fn init_log() {
 
 fn load_config() -> config::Config {
     // read the text file
-    let s = std::fs::read_to_string("chat.json").expect("Failed to find and read file 'chat.json'");
-    // json deserialize it
-    config::parse_json(&s)
+    if let Ok(s) = std::fs::read_to_string("chat.json") {
+	// json deserialize it
+	config::parse_json(&s)
+    } else {
+	config::default()
+    }
 }
