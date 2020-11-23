@@ -1,4 +1,5 @@
 use std::sync::RwLock;
+use log::debug;
 
 struct InternalStats {
     num_clients: usize,
@@ -31,6 +32,7 @@ impl Stats {
     pub fn set_num_clients(&self, num:usize) {
 	match self.int.write() {
 	    Ok(mut s) => {
+		debug!("Updating stats version to: {}", s.ver+1);
 		s.ver += 1;
 		s.num_clients = num;
 	    },

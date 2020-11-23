@@ -80,6 +80,7 @@ impl ChannelServer {
 			}
 		    }
 		    if ! channels_to_be_removed.is_empty() {
+			debug!("Going to remove {} channels from central_outgoing", channels_to_be_removed.len());
 			if let Ok(mut co_write) = self.central_outgoing.lock() {
 			    loop {
 				match channels_to_be_removed.pop() {

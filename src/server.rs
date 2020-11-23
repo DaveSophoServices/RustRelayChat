@@ -5,19 +5,22 @@ use log::{debug};
 mod channel_server;
 use channel_server::ChannelServer; 
 use super::websocket_headers::WebsocketHeaders;
+use crate::config;
 
 #[derive(Clone)]
 pub struct Server {
     shutdown: Arc<RwLock<u32>>,
     channels: Arc<RwLock<HashMap<String,ChannelServer>>>,
+    config: Arc<config::Config>,
 }
 
 // Server holds a map of channel strings to channel servers
 impl Server {
-    pub fn new() -> Server {
+    pub fn new(config:Arc<config::Config>) -> Server {
 	Server {
 	    shutdown: Arc::new(RwLock::new(0)),
 	    channels: Arc::new(RwLock::new(HashMap::new())),
+	    config,
 	}
     }
 
@@ -25,7 +28,7 @@ impl Server {
 	self.shutdown.clone()
     }
     
-    pub fn get(&self, ws_hdr:Arc<RwLock<WebsocketHeaders>>) -> ChannelServer{
+    pub fn get(&self, ws_hdr:Arc<RwLock<WebsocketHeaders>>) -> Option<ChannelServer> {
 	let uri = match &ws_hdr.read().unwrap().uri {
 	    Some(x) => x.to_string(),
 	    None => String::from(""),
@@ -34,12 +37,16 @@ impl Server {
 	match self.channels.write() {
 	    Ok(mut channels) => {
 		match channels.get(&uri) {
-		    Some(x) => x.clone(),
+		    Some(x) => Some(x.clone()),
 		    None => {
-			debug!("Creating new channel_server: {}", uri);
-			let uri_key = uri.clone();
-			channels.insert(uri_key, channel_server::new(self.shutdown.clone(), &uri));
-			channels.get(&uri).unwrap().clone()
+			if self.config.auto_create_rooms {
+			    debug!("Creating new channel_server: {}", uri);
+			    let uri_key = uri.clone();
+			    channels.insert(uri_key, channel_server::new(self.shutdown.clone(), &uri));
+			    Some(channels.get(&uri).unwrap().clone())
+			} else {
+			    None
+			}
 		    },
 		}
 	    },

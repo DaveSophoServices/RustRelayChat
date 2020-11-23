@@ -7,6 +7,7 @@ use std::time::Duration;
 mod server;
 mod stats;
 mod websocket_headers;
+mod config;
 
 use log::{debug,info,warn,error};
 
@@ -16,15 +17,17 @@ fn main() {
 }
 
 fn run(timer: u64) {
+    // load config
+    let config = Arc::new(load_config());
     let server = 
-	match TcpListener::bind("0.0.0.0:9001") {
+	match TcpListener::bind(format!("0.0.0.0:{}", config.port)) {
 	    Ok(x) => x,
-	    Err(x) => panic!("Cannot listen on port 9001: {}", x),
-	};
-    info!("Listening on port 9001");
+	    Err(x) => panic!("Cannot listen on port {}: {}", config.port, x),
+	};    
+    info!("Listening on port {}", config.port);
     // this channel will be used by clients to put their messages when
     // they receive them from the user
-    let main_server = server::Server::new();
+    let main_server = server::Server::new(config.clone());
     
     //let (tx,rx) = mpsc::channel();
     //let (newch_tx, newch_rx) = mpsc::channel();
@@ -69,7 +72,14 @@ fn run(timer: u64) {
 		    tungstenite::protocol::Role::Server,
 		    None
 		);
-	    let ch = main_server.get(ws_hdr);
+	    let ch = match main_server.get(ws_hdr) {
+		Some(x) => x,
+		None => {
+		    warn!("[{}] tried to create channel {} but not allowed", addr, "");
+		    return
+		},
+	    };
+	    
 	    let (tx2,rx2) = ch.get_tx_rx();
 	    
 	    let pair_shutdown = Arc::new(RwLock::new(0));
@@ -93,6 +103,7 @@ fn run(timer: u64) {
 			break;
 		    }
 
+		    debug!("[{}] Stats ver: {} local: {}", c_addr, stats.ver(), stat_version);
 		    if stats.ver() != stat_version {
 			// send the current stats
 			stat_version = stats.ver();
@@ -433,4 +444,11 @@ fn init_log() {
 		simplelog::Config::default(),
 		std::fs::File::create("chat.log").unwrap()),
 	]).unwrap();
+}
+
+fn load_config() -> config::Config {
+    // read the text file
+    let s = std::fs::read_to_string("chat.json").expect("Failed to find and read file 'chat.json'");
+    // json deserialize it
+    config::parse_json(&s)
 }
