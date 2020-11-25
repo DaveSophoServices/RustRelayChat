@@ -58,8 +58,9 @@
 		     // information
 		     parseStat(d.substring(7)); // after '!* STAT '
 		     d = `__${d}__`;
+		 } else {
+		     log('received: ' + d);
 		 }
-		 log('received: ' + d);
              };
              ws.onerror = function (ev) {
 		 console.log(ev);
