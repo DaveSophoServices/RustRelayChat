@@ -2,7 +2,7 @@ use std::sync::{mpsc,Arc,Mutex,RwLock};
 use std::time::Duration;
 
 use std::thread::spawn;
-use log::{debug,info,warn};
+use log::{debug,error,info,warn};
 use tungstenite::Message;
 use crate::stats::Stats;
 
@@ -56,7 +56,6 @@ impl ChannelServer {
     }
     pub fn core (&mut self) {
 	// we may want to remove
-	let mut channels_to_be_removed = Vec::new();
 
 	loop {
 	    if *self.shutdown.read().unwrap() != 0 {
@@ -69,31 +68,8 @@ impl ChannelServer {
 		Ok(recv_msg) => {
 		    debug!("* {}", recv_msg);
 
-		    info!("* Sending msg '{}' to {} channels", recv_msg, self.stats.num_clients());
-		    for (i,tx) in self.central_outgoing.lock().unwrap().iter().enumerate() {
-			match tx.send(recv_msg.clone()) {
-			    Ok(_) => (),
-			    Err(_) => {
-				// this channel is no longer good
-				channels_to_be_removed.push(i);
-			    },
-			}
-		    }
-		    if ! channels_to_be_removed.is_empty() {
-			debug!("Going to remove {} channels from central_outgoing", channels_to_be_removed.len());
-			if let Ok(mut co_write) = self.central_outgoing.lock() {
-			    loop {
-				match channels_to_be_removed.pop() {
-				    Some(x) => {
-					debug!("Dropping tx channel");
-					co_write.remove(x);
-				    },
-				    None => break, // from loop
-				};
-			    }
-			    self.stats.set_num_clients(co_write.len());
-			}
-		    }
+		    self.send_to_all(recv_msg);
+
 		    done_something = true;
 		},
 		Err(mpsc::TryRecvError::Empty) => (),
@@ -106,5 +82,42 @@ impl ChannelServer {
 		debug!("* not sleeping");
 	    }
 	}
-    }	
+    }
+    fn send_to_all(&self, msg:Message) {
+	info!("* Sending msg '{}' to {} channels", msg, self.stats.num_clients());
+
+	let mut channels_to_be_removed = Vec::new();
+
+	match self.central_outgoing.lock() {
+	    Ok(co) => {
+		for (i,tx) in co.iter().enumerate() {
+		    match tx.send(msg.clone()) {
+			Ok(_) => (),
+			Err(_) => {
+			    // this channel is no longer good
+			    channels_to_be_removed.push(i);
+			},
+		    }
+		}
+	    }
+	    Err(e) => {
+		error!("Cannot lock central outgoing: {}", e);
+	    }
+	}
+	if ! channels_to_be_removed.is_empty() {
+	    debug!("Going to remove {} channels from central_outgoing", channels_to_be_removed.len());
+	    if let Ok(mut co_write) = self.central_outgoing.lock() {
+		loop {
+		    match channels_to_be_removed.pop() {
+			Some(x) => {
+			    debug!("Dropping tx channel");
+			    co_write.remove(x);
+			},
+			None => break, // from loop
+		    };
+		}
+		self.stats.set_num_clients(co_write.len());
+	    }
+	}
+    }
 }
