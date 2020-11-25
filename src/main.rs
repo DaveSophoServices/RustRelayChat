@@ -52,53 +52,12 @@ fn run(timer: u64) {
     let channel_read_duration = Duration::from_secs(1);
     
     for stream in server.incoming() {
-	let stream_unwrapped = stream.unwrap();
-
-	let main_server = main_server.clone(); 
+	let client = client::new(stream, main_server.clone());
+	
 	spawn (move || {
-	    let addr = stream_unwrapped.peer_addr().unwrap();
-	    info!("new connection: {}", addr);
-	    
-	    let stream_clone = stream_unwrapped.try_clone();
-	    let ws_hdr_cb = websocket_headers::new_callback();
-	    let ws_hdr = ws_hdr_cb.hdr();
-	    let mut websocket = accept_hdr(
-		stream_unwrapped, ws_hdr_cb
-	    ).unwrap();
-	    debug!("{:#?}", ws_hdr);
-	    //websocket.get_ref().set_read_timeout(Some(Duration::new(0,100))).unwrap();
-	    let mut websocket_recv =
-		tungstenite::protocol::WebSocket::from_raw_socket(
-		    stream_clone.unwrap(),
-		    tungstenite::protocol::Role::Server,
-		    None
-		);
-	    let ch = match main_server.get(ws_hdr.clone()) {
-		Some(x) => x,
-		None => {
-		    warn!("[{}] tried to create channel {:?} but not allowed", addr, ws_hdr);
-		    return
-		},
-	    };
-	    
-	    let (tx2,rx2) = ch.get_tx_rx();
-	    
-	    let pair_shutdown = Arc::new(RwLock::new(0));
-	    let c_pair_shutdown = pair_shutdown.clone();
-
-	    let shutdown = main_server.shutdown_ref();
-	    let c_shutdown = shutdown.clone();
-	    let c_addr = addr.clone();
-	    let stats = ch.get_stats();
 	    spawn (move || {
 		let mut stat_version: u32 = 0xFFFFFFFF;
 		loop {
-		    // WRITE Loop
-		    // check rx2 for messages too
-		    if *c_shutdown.read().unwrap() != 0 {
-			debug!("[{}] shutdown due to global shutdown", c_addr);
-			break;
-		    }
 		    if *c_pair_shutdown.read().unwrap() != 0 {
 			debug!("[{}] Shutdown due to pair_shutdown", c_addr);
 			break;
