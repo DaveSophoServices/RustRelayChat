@@ -7,7 +7,7 @@
     <body>
 	<div style="padding:10px 10%;margin-bottom:10px;background-color:navy;color:white"><h1>Chat page</h1></div>
 	<div class="container">
-	    <section class="row" style="margin-bottom:10px">Connect to chat channel: <input type="text" id="channel" style="margin-left:10px"/><button onClick="connect(getField('#channel'))">Connect</button></section>
+	    <section id="connect" class="row" style="margin-bottom:10px">Connect to chat channel: <input placeholder="default channel" type="text" id="channel" style="margin-left:10px"/><button onClick="connect(getField('#channel'))">Connect</button></section>
 	    <section class="row">
 		<form id="form">
 		    <input type="text" name="message" id="message">
@@ -32,6 +32,12 @@
 	 function updateField(f, t) {
 	     document.querySelector(f).innerText=t;
 	 }
+	 function show(f) {
+	     document.querySelector(f).style.display="";
+	 }
+	 function hide(f) {
+	     document.querySelector(f).style.display="none";
+	 }
 	 function parseStat(stats) {
 	     try {
 		 x = JSON.parse(stats);
@@ -48,9 +54,11 @@
 	     ws = new WebSocket('ws://localhost:9001/' + channel);
 	     ws.onopen = function () {
 		 log('connected');
+		 hide('#connect');
 	     };
 	     ws.onclose = function (ev) {
 		 log('closed');
+		 show('#connect');
 	     };
 	     ws.onmessage = function (ev) {
 		 var d = ev.data;
@@ -65,6 +73,7 @@
              ws.onerror = function (ev) {
 		 console.log(ev);
 		 log('error: ' + ev.data);
+		 show('#connect');
              };
 	 }
 	 document.querySelector('#form')
