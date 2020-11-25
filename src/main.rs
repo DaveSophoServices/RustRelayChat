@@ -103,7 +103,7 @@ fn run(timer: u64) {
 			break;
 		    }
 
-		    debug!("[{}] Stats ver: {} local: {}", c_addr, stats.ver(), stat_version);
+		    //debug!("[{}] Stats ver: {} local: {}", c_addr, stats.ver(), stat_version);
 		    if stats.ver() != stat_version {
 			// send the current stats
 			stat_version = stats.ver();
@@ -123,15 +123,19 @@ fn run(timer: u64) {
 		    match recv_res {
 			// send it to the central thread
 			Ok(recv_msg) => {
-			    match websocket.write_message(recv_msg) {
-				Err(Error::ConnectionClosed) => break,
-				Err(e) => {
-				    // we got a fatal error from the connection
-				    // it's probably died
-				    debug!("[{}] shutdown due to websocket write error: {}", c_addr, e);
-				    break
-				},
-				Ok(_) => (),
+			    if let Message::Ping(_) = recv_msg {
+				// ignore the ping, it's from the central loop to make sure we're still alive
+			    } else {
+				match websocket.write_message(recv_msg) {
+				    Err(Error::ConnectionClosed) => break,
+				    Err(e) => {
+					// we got a fatal error from the connection
+					// it's probably died
+					debug!("[{}] shutdown due to websocket write error: {}", c_addr, e);
+					break
+				    },
+				    Ok(_) => (),
+				}
 			    }
 			},
 			Err(mpsc::RecvTimeoutError::Timeout) => (),
@@ -150,9 +154,11 @@ fn run(timer: u64) {
 		    debug!("[{}] shutdown due to global shutdown", addr);
 		    break;
 		}
-		if *pair_shutdown.read().unwrap() != 0 {
-		    debug!("[{}] shutdown due to pair shutdown", addr);
-		    break;
+		if let Ok(ps) = pair_shutdown.read() {
+		    if *ps != 0 {
+			debug!("[{}] shutdown due to pair shutdown", addr);
+			break;
+		    }
 		}
 		
 		let msg_res = websocket_recv.read_message();
@@ -181,9 +187,9 @@ fn run(timer: u64) {
 						    warn!("[{}] error writing close messages: {}", addr, e);
 						}
 					    }
-					    // signal the pair thread to shutdown
-					    let mut ps = pair_shutdown.write().unwrap();
-					    *ps = 1;
+					    if let Ok(mut ps) = pair_shutdown.write() {
+						*ps = 1;
+					    }
 					}
 					_ => {
 					    warn!("[{}] unknown command: {}", addr, msg);
@@ -224,6 +230,9 @@ fn run(timer: u64) {
 		// }
 	    }
 	    info!("[{}] closed Read loop", addr);
+	    if let Ok(mut ps) = pair_shutdown.write() {
+		*ps = 1;
+	    };
 	});
     }
 }
