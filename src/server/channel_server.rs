@@ -55,8 +55,6 @@ impl ChannelServer {
 	(self.tx.lock().unwrap().clone(), rx)
     }
     pub fn core (&mut self) {
-	// we may want to remove
-
 	loop {
 	    if *self.shutdown.read().unwrap() != 0 {
 		warn!("Shutting down main loop");
@@ -77,15 +75,19 @@ impl ChannelServer {
 	    }
 
 	    if !done_something {
-		std::thread::sleep(Duration::new(0,500));
+		std::thread::sleep(Duration::from_millis(500));
+		// ping the writers to make sure they're still alive
+		self.send_to_all(Message::Ping(Vec::new()));
 	    } else {
 		debug!("* not sleeping");
 	    }
 	}
     }
     fn send_to_all(&self, msg:Message) {
-	info!("* Sending msg '{}' to {} channels", msg, self.stats.num_clients());
-
+	if let Message::Text(msg) = msg.clone() {
+	    info!("* Sending msg '{:?}' to {} channels", msg, self.stats.num_clients());
+	}
+	
 	let mut channels_to_be_removed = Vec::new();
 
 	match self.central_outgoing.lock() {
