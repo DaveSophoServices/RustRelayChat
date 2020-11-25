@@ -8,6 +8,7 @@ mod server;
 mod stats;
 mod websocket_headers;
 mod config;
+mod client;
 
 use log::{debug,info,warn,error};
 
