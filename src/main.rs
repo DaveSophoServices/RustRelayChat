@@ -1,7 +1,6 @@
 use std::net::TcpListener;
 use std::thread::spawn;
-use tungstenite::{server::accept_hdr,error::Error,protocol::Message};
-use std::sync::{Arc,RwLock,mpsc};
+use std::sync::{Arc};
 use std::time::Duration;
 
 mod server;
@@ -10,7 +9,7 @@ mod websocket_headers;
 mod config;
 mod client;
 
-use log::{debug,info,warn,error};
+use log::{info};
 
 fn main() {
     init_log();
@@ -28,7 +27,7 @@ fn run(timer: u64) {
     info!("Listening on port {}", config.port);
     // this channel will be used by clients to put their messages when
     // they receive them from the user
-    let main_server = server::Server::new(config.clone());
+    let main_server = Arc::new(server::Server::new(config.clone()));
     
     //let (tx,rx) = mpsc::channel();
     //let (newch_tx, newch_rx) = mpsc::channel();
@@ -49,151 +48,11 @@ fn run(timer: u64) {
 	});
     }
 
-    let channel_read_duration = Duration::from_secs(1);
     
     for stream in server.incoming() {
-	let client = client::new(stream, main_server.clone());
-	
-	spawn (move || {
-	    spawn (move || {
-		let mut stat_version: u32 = 0xFFFFFFFF;
-		loop {
-		    if *c_pair_shutdown.read().unwrap() != 0 {
-			debug!("[{}] Shutdown due to pair_shutdown", c_addr);
-			break;
-		    }
-
-		    //debug!("[{}] Stats ver: {} local: {}", c_addr, stats.ver(), stat_version);
-		    if stats.ver() != stat_version {
-			// send the current stats
-			stat_version = stats.ver();
-			match websocket.write_message(stats.stat_msg()) {
-		    	    Err(Error::ConnectionClosed) => break,
-		    	    Err(e) => {
-		    		// we got a fatal error from the connection
-		    		// it's probably died
-				debug!("[{}] shutdown due to websocket error: {}", c_addr,e);
-		    		break
-		    	    },
-		    	    Ok(_) => (),
-			}
-		    }
-		    
-		    let recv_res = rx2.recv_timeout(channel_read_duration);
-		    match recv_res {
-			// send it to the central thread
-			Ok(recv_msg) => {
-			    if let Message::Ping(_) = recv_msg {
-				// ignore the ping, it's from the central loop to make sure we're still alive
-			    } else {
-				match websocket.write_message(recv_msg) {
-				    Err(Error::ConnectionClosed) => break,
-				    Err(e) => {
-					// we got a fatal error from the connection
-					// it's probably died
-					debug!("[{}] shutdown due to websocket write error: {}", c_addr, e);
-					break
-				    },
-				    Ok(_) => (),
-				}
-			    }
-			},
-			Err(mpsc::RecvTimeoutError::Timeout) => (),
-			Err(mpsc::RecvTimeoutError::Disconnected) => {
-			    debug!("[{}] rx2 disconnect", c_addr);
-			    break;
-			},
-		    }
-		}
-		debug!("[{}] closed write loop", c_addr);
-	    });
-		   
-	    loop {
-		// READ Loop
-		if *shutdown.read().unwrap() != 0 {
-		    debug!("[{}] shutdown due to global shutdown", addr);
-		    break;
-		}
-		if let Ok(ps) = pair_shutdown.read() {
-		    if *ps != 0 {
-			debug!("[{}] shutdown due to pair shutdown", addr);
-			break;
-		    }
-		}
-		
-		let msg_res = websocket_recv.read_message();
-		match msg_res {
-		    Ok(msg) => {
-			match msg {
-			    Message::Close(_) => (),
-			    Message::Binary(_) => (),
-			    Message::Ping(_) => (),
-			    Message::Pong(_) => (),
-			    Message::Text(msg) => {
-				debug!("[{}] Sending msg ({:?}) to channel", addr, msg);
-				// has the message been handled as a command
-				let mut handled = false;
-				// handle the message if it's a command
-				if msg.starts_with('/') {
-				    debug!("[{}] {} command", addr, msg);
-				    match msg.as_str() {
-					"/QUIT" => {
-					    // we're going to close out
-					    debug!("[{}] Going to close connection", addr);
-					    if let Err(e) = websocket_recv.write_message(Message::Text("** Going to close connection".to_string())) {
-						warn!("[{}] error writing goodbye message: {}", addr, e);
-					    } else {
-						if let Err(e) = websocket_recv.write_message(Message::Close(None)) {
-						    warn!("[{}] error writing close messages: {}", addr, e);
-						}
-					    }
-					    if let Ok(mut ps) = pair_shutdown.write() {
-						*ps = 1;
-					    }
-					}
-					_ => {
-					    warn!("[{}] unknown command: {}", addr, msg);
-					}
-				    }
-				    // assume we've handled it
-				    handled = true;
-				}
-				// don't print handled commands to central command.
-				if !handled {
-				    match tx2.send(Message::Text(msg)) {
-					Ok(_) => (),
-					Err(x) => {
-					    error!("unable to send msg to central: {}", x);
-					},
-				    }
-				}
-			    }
-			}
-		    },
-		    Err(Error::ConnectionClosed) => {
-			info!("[{}] websocket closed", addr);
-			break; // from loop
-		    },
-		    Err(Error::AlreadyClosed) => {
-			info!("[{}] websocket already closed", addr);
-			break; // from loop
-		    },
-		    Err(x) => {
-			info!("[{}] websocket error: ({}) {}", addr, type_of(&x), x);
-			break; // from loop
-		    },
-		}
-
-		
-		// if msg.is_binary() || msg.is_text() {
-		//     
-		// }
-	    }
-	    info!("[{}] closed Read loop", addr);
-	    if let Ok(mut ps) = pair_shutdown.write() {
-		*ps = 1;
-	    };
-	});
+	if let Ok(stream) = stream {
+	    client::new(stream, main_server.clone());
+	}
     }
 }
 

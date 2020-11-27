@@ -2,7 +2,7 @@ use std::sync::{Arc,RwLock};
 use std::collections::HashMap;
 use log::{debug};
 
-mod channel_server;
+pub mod channel_server;
 use channel_server::ChannelServer; 
 use super::websocket_headers::WebsocketHeaders;
 use crate::config;
