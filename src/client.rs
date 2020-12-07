@@ -4,6 +4,7 @@ use tungstenite::{accept_hdr,Error,Message,WebSocket};
 use std::thread::spawn;
 use std::time::Duration;
 
+use crate::dblog::{logmessage, logmessage::LogMessage};
 use crate::server::channel_server::ChannelServer;
 use crate::stats::Stats;
 use crate::server::Server;
@@ -23,6 +24,7 @@ pub struct Client {
     tx: Arc<Mutex<mpsc::Sender<Message>>>,
     rx: Arc<Mutex<mpsc::Receiver<Message>>>,
     main_server: Arc<Server>,
+    log_channel: Option<Mutex<mpsc::Sender<LogMessage>>>,
 }
 
 pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
@@ -65,6 +67,7 @@ pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
 	shutdown: main_server.shutdown_ref(),
 	stats,
 	main_server,
+	log_channel: None,
     });
     info!("new connection: {}", r.addr);
 
@@ -123,6 +126,8 @@ fn receiver(client: Arc<Client>) {
 	if let Ok(mut ws) = client.websocket_ro.lock() {
 	    match ws.read_message() {
 		Ok(Message::Text(msg)) => {
+		    // going to log the command
+		    client.log(&msg);
 		    debug!("[{}] Sending msg ({:?}) to central", client.addr, msg);
 		    let mut handled = false;
 		    if msg.starts_with('/') {
@@ -188,6 +193,27 @@ impl Client {
 	self.write(Message::Text(msg.to_string()));
 	self.write(Message::Close(None));
 	self.mark_connection_closed();
+    }
+
+    // record the incoming message (&String) to the database
+    fn log(&self, msg: &str) {
+	debug!("Going to log {} by {} to database", self.name, msg);
+	match &self.log_channel {
+	    Some(ch) => {
+		if let Ok(ch) = ch.lock() {
+		    match ch.send(logmessage::new(self.name.clone(),
+						  self.addr.clone(),
+						  self.ch.get_name(),
+						  msg.to_string())) {
+			Ok(_) => (),
+			Err(e) =>
+			    error!("Unable to send LogMessage for logging: {}",e),
+			
+		    }
+		}
+	    },
+	    None => (),
+	}
     }
     
     // called when we have an error that wants us to terminate

@@ -8,6 +8,7 @@ mod stats;
 mod websocket_headers;
 mod config;
 mod client;
+mod dblog;
 
 use log::{info};
 

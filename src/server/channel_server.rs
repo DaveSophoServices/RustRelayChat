@@ -38,6 +38,10 @@ pub fn new(shutdown:std::sync::Arc<std::sync::RwLock<u32>>,
     return ret;
 }
 impl ChannelServer {
+    pub fn get_name(&self) -> String {
+	self.channel.clone()
+    }
+	
     pub fn get_stats(&self) -> Arc<Stats> {
 	return self.stats.clone();
     }
