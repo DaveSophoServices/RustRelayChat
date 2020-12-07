@@ -14,7 +14,8 @@ use log::{debug,info,warn,error};
 pub struct Client {
     name: String,
     addr: SocketAddr,
-    websocket: Arc<WebSocket<TcpStream>>,
+    websocket_ro: Mutex<WebSocket<TcpStream>>,
+    websocket_wo: Mutex<WebSocket<TcpStream>>,
     ch: Arc<ChannelServer>,
     pair_shutdown: Arc<RwLock<u32>>,
     shutdown: Arc<RwLock<u32>>,
@@ -28,7 +29,16 @@ pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
     let ws_hdr_cb = websocket_headers::new_callback();
     let ws_hdr = ws_hdr_cb.hdr();
     let addr = stream.peer_addr().unwrap();
-    let websocket = Arc::new(accept_hdr(
+
+    let stream_clone = stream.try_clone();
+    let websocket_wo =
+	Mutex::new(WebSocket::from_raw_socket(
+	    stream_clone.unwrap(),
+	    tungstenite::protocol::Role::Server,
+	    None
+	));
+    
+    let websocket_ro = Mutex::new(accept_hdr(
 	stream, ws_hdr_cb
     ).unwrap());
     
@@ -42,20 +52,12 @@ pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
 
     let (tx,rx) = ch.get_tx_rx();
 
-    /*
-	    let stream_clone = stream_unwrapped.try_clone();
-	    let mut websocket_recv =
-		tungstenite::protocol::WebSocket::from_raw_socket(
-		    stream_clone.unwrap(),
-		    tungstenite::protocol::Role::Server,
-		    None
-		);
-     */
     let stats = ch.get_stats();
     let r = Arc::new(Client {
 	name: "user".to_string(),
 	addr,
-	websocket,
+	websocket_ro,
+	websocket_wo,
 	ch,
 	rx: Arc::new(Mutex::new(rx)),
 	tx: Arc::new(Mutex::new(tx)),
@@ -118,43 +120,45 @@ fn receiver(client: Arc<Client>) {
 		   client.addr);
 	    break;
 	}
-	match client.websocket.read_message() {
-	    Ok(Message::Text(msg)) => {
-		debug!("[{}] Sending msg ({:?}) to central", client.addr, msg);
-		let mut handled = false;
-		if msg.starts_with('/') {
-		    debug!("[{}] {} command", client.addr, msg);
-		    match msg.as_str() {
-			"/QUIT" => {
-			    debug!("[{}] Going to close connection",
-				   client.addr);
-			    client.close("** Going to close connection.");
-			},
-			_ => {
-			    warn!("[{}] unknown command: {}", client.addr, msg);
+	if let Ok(mut ws) = client.websocket_ro.lock() {
+	    match ws.read_message() {
+		Ok(Message::Text(msg)) => {
+		    debug!("[{}] Sending msg ({:?}) to central", client.addr, msg);
+		    let mut handled = false;
+		    if msg.starts_with('/') {
+			debug!("[{}] {} command", client.addr, msg);
+			match msg.as_str() {
+			    "/QUIT" => {
+				debug!("[{}] Going to close connection",
+				       client.addr);
+				client.close("** Going to close connection.");
+			    },
+			    _ => {
+				warn!("[{}] unknown command: {}", client.addr, msg);
+			    }
 			}
+			handled = true;
 		    }
-		    handled = true;
-		}
-
-		if !handled {
-		    client.to_central(msg);
-		}
+		    
+		    if !handled {
+			client.to_central(msg);
+		    }
+		}	    
+		Ok(_) => (), // ignore other websocket message types
+		Err(Error::ConnectionClosed) => {
+		    info!("[{}] websocket closed.", client.addr);
+		    client.mark_connection_closed();
+		},
+		Err(Error::AlreadyClosed) => {
+		    info!("[{}] websocket already closed.", client.addr);
+		    client.mark_connection_closed();
+		},	    
+		Err(e) => {
+		    info!("[{}] websocket error: ({}) {}",
+			  client.addr, type_of(&e), e);
+		    client.mark_connection_closed();
+		},
 	    }
-	    Ok(_) => (), // ignore other websocket message types
-	    Err(Error::ConnectionClosed) => {
-		info!("[{}] websocket closed.", client.addr);
-		client.mark_connection_closed();
-	    },
-	    Err(Error::AlreadyClosed) => {
-		info!("[{}] websocket already closed.", client.addr);
-		client.mark_connection_closed();
-	    },	    
-	    Err(e) => {
-		info!("[{}] websocket error: ({}) {}",
-		      client.addr, type_of(&e), e);
-		client.mark_connection_closed();
-	    },
 	}
     } // end of loop
     debug!("[{}] closed read loop.", client.addr);
@@ -205,16 +209,18 @@ impl Client {
     }
     
     fn write(&self, msg: Message) {
-	match self.websocket.write_message(msg) {
-	    Err(Error::ConnectionClosed) => self.mark_connection_closed(),
-	    Err(e) => {
-		// we got a fatal error from the connection
-		// it's probably died
-		debug!("[{}] shutdown due to websocket error: {}",
-		       self.addr, e);
-		self.mark_connection_closed();
-	    },
-	    Ok(_) => (),
+	if let Ok(mut ws) = self.websocket_wo.lock() {
+	    match ws.write_message(msg) {
+		Err(Error::ConnectionClosed) => self.mark_connection_closed(),
+		Err(e) => {
+		    // we got a fatal error from the connection
+		    // it's probably died
+		    debug!("[{}] shutdown due to websocket error: {}",
+			   self.addr, e);
+		    self.mark_connection_closed();
+		},
+		Ok(_) => (),
+	    }
 	}
     }
 }
