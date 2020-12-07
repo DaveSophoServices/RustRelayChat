@@ -6,12 +6,14 @@ pub mod channel_server;
 use channel_server::ChannelServer; 
 use super::websocket_headers::WebsocketHeaders;
 use crate::config;
+use crate::dblog;
 
 #[derive(Clone)]
 pub struct Server {
     shutdown: Arc<RwLock<u32>>,
     channels: Arc<RwLock<HashMap<String,ChannelServer>>>,
     config: Arc<config::Config>,
+    dblogger: Arc<dblog::DBLog>,
 }
 
 // Server holds a map of channel strings to channel servers
@@ -21,6 +23,7 @@ impl Server {
 	    shutdown: Arc::new(RwLock::new(0)),
 	    channels: Arc::new(RwLock::new(HashMap::new())),
 	    config,
+	    dblogger: Arc::new(dblog::new()),
 	}
     }
 
@@ -53,7 +56,4 @@ impl Server {
 	    Err(_) => panic!("failed!"),
 	}
     }
-}
-
-pub fn sendrecv() {
 }
