@@ -22,8 +22,8 @@ impl Server {
 	Server {
 	    shutdown: Arc::new(RwLock::new(0)),
 	    channels: Arc::new(RwLock::new(HashMap::new())),
+	    dblogger: Arc::new(dblog::new(config.clone())),
 	    config,
-	    dblogger: Arc::new(dblog::new()),
 	}
     }
 
