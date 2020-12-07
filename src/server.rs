@@ -1,4 +1,4 @@
-use std::sync::{Arc,RwLock};
+use std::sync::{Arc,RwLock,mpsc};
 use std::collections::HashMap;
 use log::{debug};
 
@@ -55,5 +55,10 @@ impl Server {
 	    },
 	    Err(_) => panic!("failed!"),
 	}
+    }
+
+    pub fn logger_channel(&self) -> Option<mpsc::Sender<dblog::logmessage::LogMessage>> {
+	self.dblogger.get_sender()
+	    
     }
 }

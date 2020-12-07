@@ -55,6 +55,13 @@ pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
     let (tx,rx) = ch.get_tx_rx();
 
     let stats = ch.get_stats();
+
+    let log_channel =
+	match main_server.logger_channel() {
+	    Some(lc) => Some(Mutex::new(lc)),
+	    None => None,
+	};
+    
     let r = Arc::new(Client {
 	name: "user".to_string(),
 	addr,
@@ -67,7 +74,7 @@ pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
 	shutdown: main_server.shutdown_ref(),
 	stats,
 	main_server,
-	log_channel: None,
+	log_channel,
     });
     info!("new connection: {}", r.addr);
 
