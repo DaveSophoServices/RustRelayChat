@@ -44,7 +44,7 @@
 	 var ws;
 	 
 	 function connect(channel) {
-	     //var ws = new WebSocket('ws://chat.sophoservices.com:9001/');
+	     //ws = new WebSocket('ws://chat.sophoservices.com:9001/' + channel);
 	     ws = new WebSocket('ws://localhost:9001/' + channel);
 	     ws.onopen = function () {
 		 log('connected');
