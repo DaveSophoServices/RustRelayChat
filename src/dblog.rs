@@ -45,6 +45,29 @@ fn logger(rx: mpsc::Receiver<LogMessage>, config:Arc<config::Config>) {
 	    Err(e) => { err_wait(e); continue; }
 	};
 	// ok, we have a conn
+	loop {
+	    // wait for a message
+	    match rx.recv_timeout(std::time::Duration::from_secs(1)) {
+		Ok(m) => {
+		    // this is a LogMessage
+		    match conn.exec_drop("INSERT INTO chat_log (username,address,channel,stamp,message)
+                              VALUES (:username,:address,:channel,:stamp,:message)",
+			      params! {
+				  "username" => m.user,
+				  "address" => format!("{}",m.addr),
+				  "channel" => m.channel,
+				  "stamp" => m.datetime.timestamp(),
+				  "message" => m.message,
+			      }
+		    ) {
+			Ok(_) => (),
+			Err(e) => error!("Failed to write to database: {}", e),
+		    }
+		}
+		Err(e) => { err_wait(e); break; /* from inner loop. we will attempt to pickup a new connection and try again */ }
+	    }
+	    
+	}
 	
     }
     // check table exists
