@@ -61,7 +61,6 @@ pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
 	    Some(lc) => Some(Mutex::new(lc)),
 	    None => None,
 	};
-    
     let r = Arc::new(Client {
 	name: "user".to_string(),
 	addr,

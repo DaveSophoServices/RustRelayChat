@@ -1,8 +1,5 @@
-use std::sync::{mpsc};
 use std::net::{SocketAddr};
 use chrono::prelude::*;
-
-use log::{debug};
 
 pub struct LogMessage {
     pub user: String,
