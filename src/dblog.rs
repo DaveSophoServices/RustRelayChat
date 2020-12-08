@@ -3,7 +3,8 @@ pub mod logmessage;
 
 use crate::config;
 
-use std::thread::spawn;
+use std::thread::{spawn,sleep};
+use std::time::Duration;
 use logmessage::LogMessage;
 use std::sync::{Arc,Mutex,mpsc};
 use log::{debug,error};
@@ -53,8 +54,9 @@ fn logger(rx: mpsc::Receiver<LogMessage>, config:Arc<config::Config>, dbl:DBLog)
 	// ok, we have a conn
 	loop {
 	    // wait for a message
+	    let mut worked = false;
 	    if let Ok(_) = dbl.ch_lock.lock() {
-		match rx.recv_timeout(std::time::Duration::from_secs(1)) {
+		match rx.try_recv() {
 		    Ok(m) => {
 			// this is a LogMessage
 			debug!("About to log our message to the DB");
@@ -70,17 +72,20 @@ fn logger(rx: mpsc::Receiver<LogMessage>, config:Arc<config::Config>, dbl:DBLog)
 			) {
 			    Ok(_) => (),
 			    Err(e) => error!("Failed to write to database: {}", e),
-			}		    
+			}
+			worked = true;
 		    }
-		    Err(mpsc::RecvTimeoutError::Timeout) => (),
+		    Err(mpsc::TryRecvError::Empty) => (),
 		    Err(e) => { err_wait("recv error", e); break; /* from inner loop. we will attempt to pickup a new connection and try again */ }
 		}
 	    }
-	    std::thread::sleep(std::time::Duration::from_millis(200));
+	    if !worked {
+		// sleep outside the lock
+		sleep(Duration::from_millis(200));
+	    }
 	}
 	
     }
-    // check table exists
 }
 
 // prints an error and waits a short time
@@ -91,9 +96,7 @@ fn err_wait(l:&str, m: impl std::fmt::Display) {
     
 impl DBLog {
     pub fn get_sender(&self) -> Option<mpsc::Sender<LogMessage>> {
-	debug!("Cloning a tx for the db logger");
 	if let Ok(_) = self.ch_lock.lock() {
-	    debug!("About to return the logger");
 	    match self.tx.lock() {
 		Ok(tx) => Some(tx.clone()),
 		Err(e) => {
