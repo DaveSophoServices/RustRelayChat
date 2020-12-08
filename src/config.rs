@@ -7,6 +7,16 @@ pub struct Config {
     pub port:i32,
     #[serde(default="def_auto_create_rooms")]
     pub auto_create_rooms:bool,
+    #[serde(default="def_dbuser")]    
+    pub dbuser:String,
+    #[serde(default="def_dbpass")]
+    pub dbpass:String,
+    #[serde(default="def_dbhost")]
+    pub dbhost:String,
+    #[serde(default="def_dbport")]
+    pub dbport:i32,
+    #[serde(default="def_dbname")]
+    pub dbname:String,
 }
 
 pub fn parse_json(json:&str) -> Config {
@@ -17,16 +27,27 @@ pub fn default() -> Config {
     Config {
 	port: def_port(),
 	auto_create_rooms: def_auto_create_rooms(),
+	dbuser: def_dbuser(),
+	dbpass: def_dbpass(),
+	dbhost: def_dbhost(),
+	dbport: def_dbport(),
+	dbname: def_dbname(),
     }
 }
 
-fn def_port() -> i32 {
-    9001
-}
+fn def_port() -> i32 { 9001 }
 
-fn def_auto_create_rooms() -> bool {
-    true
-}
+fn def_auto_create_rooms() -> bool { true }
+
+fn def_dbuser() -> String { "".to_string() }
+
+fn def_dbpass() -> String { "".to_string() }
+
+fn def_dbhost() -> String { "".to_string() }
+
+fn def_dbport() -> i32 { -1 }
+
+fn def_dbname() -> String { "".to_string() }
 
 #[cfg(test)]
 mod tests {
