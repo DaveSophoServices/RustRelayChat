@@ -7,7 +7,7 @@ global $wp, $wp_query, $wp_the_query, $wp_rewrite, $wp_did_header;
 
 require_once(BASE_PATH . '/wp-load.php');
 $user = wp_get_current_user();
-
+$ret["ts"] = time();
 if ($user->exists()) {
 	$ret["login"] = $user->user_login;
 	$ret["email"] = $user->user_email;
@@ -15,5 +15,7 @@ if ($user->exists()) {
 } else {
 	$ret["err"] = 'user not logged in';
 }
-echo json_encode($ret);
+$out = json_encode($ret);
+$hash = hash_hmac("sha256",$out, "mysecretkey");
+echo $out."\n".$hash;
 ?>
