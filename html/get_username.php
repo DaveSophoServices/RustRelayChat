@@ -10,7 +10,10 @@ $user = wp_get_current_user();
 $ret["ts"] = time();
 if ($user->exists()) {
 	$ret["login"] = $user->user_login;
-	$ret["email"] = $user->user_email;
+    $caps = $user->get_role_caps();
+    if (isset($caps["administrator"]) && $caps["administrator"]) {
+        $ret["admin"] = true;
+    }
 	$ret["display"] = $user->display_name;
 } else {
 	$ret["err"] = 'user not logged in';
