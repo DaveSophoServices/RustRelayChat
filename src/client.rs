@@ -9,6 +9,7 @@ use crate::server::channel_server::ChannelServer;
 use crate::stats::Stats;
 use crate::server::Server;
 use crate::websocket_headers;
+use crate::hasher;
 
 use log::{debug,info,warn,error};
 
@@ -138,14 +139,20 @@ fn receiver(client: Arc<Client>) {
 		    let mut handled = false;
 		    if msg.starts_with('/') {
 			debug!("[{}] {} command", client.addr, msg);
-			match msg.as_str() {
+			// split off the command
+			let c:Vec<&str> = msg.splitn(2, ' ').collect();
+			match c[0] {
 			    "/QUIT" => {
 				debug!("[{}] Going to close connection",
 				       client.addr);
 				client.close("** Going to close connection.");
 			    },
+			    "/USER" => {
+				debug!("[{}] Setting user info", client.addr);
+				client.set_info(c[1]);
+			    },
 			    _ => {
-				warn!("[{}] unknown command: {}", client.addr, msg);
+				warn!("[{}] unknown command: {:?}", client.addr, c);
 			    }
 			}
 			handled = true;
@@ -230,6 +237,17 @@ impl Client {
 	}
     }    
 
+
+    fn set_info(&self, arg: &str) {
+	// check the hmac at the end first
+	let a:Vec<&str> = arg.rsplitn(2,'\n').collect();
+	debug!("info args: {:?}", a);
+	if hasher::verify(a[0], a[1], "mysecretkey") {
+
+	}
+		
+    }
+    
     fn to_central(&self, msg: String) {
 	if let Ok(tx) = self.tx.lock() {
 	    if let Err(e) = tx.send(Message::Text(msg)) {

@@ -9,6 +9,7 @@ mod websocket_headers;
 mod config;
 mod client;
 mod dblog;
+mod hasher;
 
 use log::{info};
 
