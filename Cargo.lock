@@ -193,16 +193,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crypto-mac"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4857fd85a0c34b3c3297875b747c1e02e06b6a0ea32dd892d8192b9ce0813ea6"
-dependencies = [
- "generic-array 0.14.4",
- "subtle",
-]
-
-[[package]]
 name = "derive_utils"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -323,14 +313,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "644f9158b2f133fd50f5fb3242878846d9eb792e445c893805ff0e3824006e35"
 
 [[package]]
-name = "hmac"
-version = "0.10.1"
+name = "hmac-sha256"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1441c6b1e930e2817404b5046f1f989899143a12bf92de603b69f4e0aee1e15"
-dependencies = [
- "crypto-mac",
- "digest 0.9.0",
-]
+checksum = "219d368c625166098039429766941449ebf303da35d642eb339503a2bdad3423"
 
 [[package]]
 name = "http"
@@ -760,13 +746,12 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "hex",
- "hmac",
+ "hmac-sha256",
  "http",
  "log",
  "mysql",
  "serde",
  "serde_json",
- "sha2",
  "simplelog",
  "tungstenite",
 ]
@@ -992,12 +977,6 @@ name = "stdweb-internal-runtime"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "213701ba3370744dcd1a12960caa4843b3d68b4d1c0a5d575e0d65b2ee9d16c0"
-
-[[package]]
-name = "subtle"
-version = "2.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "343f3f510c2915908f155e94f17220b19ccfacf2a64a2a5d8004f2c3e311e7fd"
 
 [[package]]
 name = "syn"
