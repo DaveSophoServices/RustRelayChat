@@ -10,11 +10,11 @@ use crate::stats::Stats;
 use crate::server::Server;
 use crate::websocket_headers;
 use crate::hasher;
-
+use crate::userinfo;
 use log::{debug,info,warn,error};
 
 pub struct Client {
-    name: String,
+    name: Mutex<String>,
     addr: SocketAddr,
     websocket_ro: Mutex<WebSocket<TcpStream>>,
     websocket_wo: Mutex<WebSocket<TcpStream>>,
@@ -26,6 +26,7 @@ pub struct Client {
     rx: Arc<Mutex<mpsc::Receiver<Message>>>,
     main_server: Arc<Server>,
     log_channel: Option<Mutex<mpsc::Sender<LogMessage>>>,
+    is_admin: Mutex<bool>,
 }
 
 pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
@@ -63,7 +64,7 @@ pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
         None => None,
     };
     let r = Arc::new(Client {
-        name: "user".to_string(),
+        name: Mutex::new("user".to_string()),
         addr,
         websocket_ro,
         websocket_wo,
@@ -75,6 +76,7 @@ pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
         stats,
         main_server,
         log_channel,
+        is_admin: Mutex::new(false),
     });
     info!("new connection: {}", r.addr);
     
@@ -144,13 +146,29 @@ fn receiver(client: Arc<Client>) {
                         match c[0] {
                             "/QUIT" => {
                                 debug!("[{}] Going to close connection",
-                                client.addr);
+                                    client.addr);
                                 client.close("** Going to close connection.");
                             },
                             "/USER" => {
                                 debug!("[{}] Setting user info", client.addr);
-                                client.set_info(c[1]);
+                                match client.set_info(c[1]) {
+                                    Ok(_) => (),
+                                    Err(e) => {
+                                        // we need to close this connection
+                                        error!("[{}] unable to set client info: {}",
+                                                client.addr, e);
+                                        client.close("** Going to close connection.");
+                                    },
+                                }
                             },
+                            "/USERS" => {
+                                // list the users
+                                match client.get_userlist() {
+                                    Ok(list) => client.write(Message::from(list)),
+                                    Err(e) => error!("[{}] unable to get userlist: {}",
+                                            client.addr, e),
+                                }
+                            }
                             _ => {
                                 warn!("[{}] unknown command: {:?}", client.addr, c);
                             }
@@ -208,13 +226,42 @@ impl Client {
         self.mark_connection_closed();
     }
     
+    fn get_name(&self) -> String {
+        match self.name.lock() {
+            Ok(s) => s.clone(),
+            Err(e) => panic!("[{}] Unable to obtain lock for name: {}",
+                                self.addr, e),
+
+        }
+    }
+    fn set_name(&self, n:String) {
+        match self.name.lock() {
+            Ok(mut s) => *s = n,
+            Err(e) => panic!("[{}] Unable to obtain lock for set name: {}",
+                                self.addr, e),
+        }
+    }
+
+    fn set_is_admin(&self, b:bool) {
+        match self.is_admin.lock() {
+            Ok(mut a) => *a = b,
+            Err(e) => panic!("[{}] Unable to obtain lock for set is_admin: {}",
+                                self.addr, e),
+        }
+    }
+
+    fn get_userlist(&self) -> String {
+        // asks the channel for a list of usernames connected
+        self.ch.get_userlist()
+    }
     // record the incoming message (&String) to the database
     fn log(&self, msg: &str) {
-        debug!("Going to log {} by {} to database", self.name, msg);
+        let name = self.get_name();
+        debug!("Going to log {} by {} to database", name, msg);
         match &self.log_channel {
             Some(ch) => {
                 if let Ok(ch) = ch.lock() {
-                    match ch.send(logmessage::new(self.name.clone(),
+                    match ch.send(logmessage::new(name,
                     self.addr.clone(),
                     self.ch.get_name(),
                     msg.to_string())) {
@@ -238,16 +285,33 @@ impl Client {
     }    
     
     
-    fn set_info(&self, arg: &str) {
+    fn set_info(&self, arg: &str) -> Result<bool, String> {
         // check the hmac at the end first
         let a:Vec<&str> = arg.rsplitn(2,'\n').collect();
-        debug!("info args: {:?}", a);
         match hasher::verify(a[0], a[1], "mysecretkey") {
             Ok(_) => { 
                 // yes, the info is good
-                
+                debug!("info is good: {:?}", a[1]);
+                let info = userinfo::UserInfo::new(a[1]);
+                if let Some(info) = info {
+                    if info.err != "" {
+                        Err(info.err)
+                    } else {
+                        // assign the details to our session
+                        self.set_name(info.display);
+                        //self.channel = Some(info.channel);
+                        self.set_is_admin(info.admin);
+                        Ok(true)
+                    }
+                } else {
+                    Err("Failed to decode user info".to_string())
+                }
             },
-            _ => ()
+            Err(e) => {
+                // no, the hmac is incorrect
+                error!("[{}] bad info signature: {}", self.addr, e);
+                Err(e)
+            }
         }
         
     }

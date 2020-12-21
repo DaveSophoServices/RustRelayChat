@@ -10,6 +10,7 @@ mod config;
 mod client;
 mod dblog;
 mod hasher;
+mod userinfo;
 
 use log::{info};
 
@@ -246,12 +247,12 @@ mod tests {
 	let mut ws3 = ws_with_timeout_room("two");
 
 	// get the STAT messages out of the way
-	let mut msg = ws.read_message().unwrap();
-	msg = ws2.read_message().unwrap();
-	msg = ws3.read_message().unwrap();
+	ws.read_message().unwrap();
+	ws2.read_message().unwrap();
+	ws3.read_message().unwrap();
 
 	ws2.write_message(Message::Text("abc".to_string())).unwrap();
-	msg = ws.read_message().unwrap();
+	let msg = ws.read_message().unwrap();
 	assert_eq!(msg.into_text().unwrap(), "abc");
 	match ws3.read_message() {
 	    Ok (_) => panic!("not supposed to receive a response on ws3"),
