@@ -242,8 +242,12 @@ impl Client {
         // check the hmac at the end first
         let a:Vec<&str> = arg.rsplitn(2,'\n').collect();
         debug!("info args: {:?}", a);
-        if hasher::verify(a[0], a[1], "mysecretkey") {
-            
+        match hasher::verify(a[0], a[1], "mysecretkey") {
+            Ok(_) => { 
+                // yes, the info is good
+                
+            },
+            _ => ()
         }
         
     }
