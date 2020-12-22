@@ -221,6 +221,7 @@ impl Client {
     }
     
     fn close(&self, msg: &str) {
+        self.ch.remove_client(&self);
         self.write(Message::Text(msg.to_string()));
         self.write(Message::Close(None));
         self.mark_connection_closed();
