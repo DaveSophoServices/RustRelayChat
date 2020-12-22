@@ -97,8 +97,9 @@ impl ChannelServer {
 	}
 
 	pub fn remove_client(&self, client:&Client) {
+		debug!("Looking to remove client: {}", client);
 		match self.clientlist.lock() {
-			Ok(mut list) => {
+			Ok(mut list) => {				
 				let mut x: Option<usize> = None;
 				for (i,c) in list.iter().enumerate() {
 					if Arc::as_ptr(c) == client {
@@ -106,7 +107,7 @@ impl ChannelServer {
 					}
 				}
 				if let Some(x) = x {
-					debug!("Removing from clientlist");
+					debug!("Removing {} from clientlist", client);
 					list.remove(x);
 				}
 			},

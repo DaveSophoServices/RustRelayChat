@@ -204,7 +204,11 @@ fn type_of<T>(_: &T) -> &'static str {
     std::any::type_name::<T>()
 }
 
-
+impl std::fmt::Display for Client {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.addr)
+    }
+}
 impl Client {
     fn check_shutdowns(&self) -> u32 {
         if let Ok(i) = self.shutdown.read() {
@@ -221,7 +225,6 @@ impl Client {
     }
     
     fn close(&self, msg: &str) {
-        self.ch.remove_client(&self);
         self.write(Message::Text(msg.to_string()));
         self.write(Message::Close(None));
         self.mark_connection_closed();
@@ -283,6 +286,7 @@ impl Client {
             debug!("Marking our connection pair as closing.");
             *i = 1;
         }
+        self.ch.remove_client(&self);
     }    
     
     
