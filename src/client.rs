@@ -127,78 +127,77 @@ fn sender(client: Arc<Client>) {
 
 // webbrowser socket -> central
 fn receiver(client: Arc<Client>) {
-    loop {
-        if client.check_shutdowns() != 0 {
-            debug!("[{}] closing read loop due to client shutdown req",
-            client.addr);
-            break;
-        }
-        if let Ok(mut ws) = client.websocket_ro.lock() {
-            match ws.read_message() {
-                Ok(Message::Text(msg)) => {
-                    // going to log the command
-                    client.log(&msg);
-                    debug!("[{}] Sending msg ({:?}) to central", client.addr, msg);
-                    let mut handled = false;
-                    if msg.starts_with('/') {
-                        debug!("[{}] {} command", client.addr, msg);
-                        // split off the command
-                        let c:Vec<&str> = msg.splitn(2, ' ').collect();
-                        match c[0] {
-                            "/QUIT" => {
-                                debug!("[{}] Going to close connection",
-                                    client.addr);
-                                client.close("** Going to close connection.");
-                            },
-                            "/USER" => {
-                                debug!("[{}] Setting user info", client.addr);
-                                match client.set_info(c[1]) {
-                                    Ok(_) => (),
-                                    Err(e) => {
-                                        // we need to close this connection
-                                        error!("[{}] unable to set client info: {}",
-                                                client.addr, e);
-                                        client.close("** Going to close connection.");
-                                    },
-                                }
-                            },
-                            "/USERS" => {
-                                // list the users
-                                match client.get_userlist() {
-                                    Ok(list) => client.write(Message::from(list)),
-                                    Err(e) => error!("[{}] unable to get userlist: {}",
-                                            client.addr, e),
-                                }
-                            }
-                            _ => {
-                                warn!("[{}] unknown command: {:?}", client.addr, c);
-                            }
-                        }
-                        handled = true;
-                    }
-                    
-                    if !handled {
-                        client.to_central(msg);
-                    }
-                }	    
-                Ok(_) => (), // ignore other websocket message types
-                Err(Error::ConnectionClosed) => {
-                    info!("[{}] websocket closed.", client.addr);
-                    client.mark_connection_closed();
-                },
-                Err(Error::AlreadyClosed) => {
-                    info!("[{}] websocket already closed.", client.addr);
-                    client.mark_connection_closed();
-                },	    
-                Err(e) => {
-                    info!("[{}] websocket error: ({}) {}",
-                    client.addr, type_of(&e), e);
-                    client.mark_connection_closed();
-                },
+    spawn(move || {
+        loop { 
+            if client.check_shutdowns() != 0 {
+                debug!("[{}] closing read loop due to client shutdown req",
+                client.addr);
+                break;
             }
-        }
-    } // end of loop
-    debug!("[{}] closed read loop.", client.addr);
+            if let Ok(mut ws) = client.websocket_ro.lock() {
+                match ws.read_message() {
+                    Ok(Message::Text(msg)) => {
+                        // going to log the command
+                        client.log(&msg);
+                        debug!("[{}] Sending msg ({:?}) to central", client.addr, msg);
+                        let mut handled = false;
+                        if msg.starts_with('/') {
+                            debug!("[{}] {} command", client.addr, msg);
+                            // split off the command
+                            let c:Vec<&str> = msg.splitn(2, ' ').collect();
+                            match c[0] {
+                                "/QUIT" => {
+                                    debug!("[{}] Going to close connection",
+                                        client.addr);
+                                    client.close("** Going to close connection.");
+                                },
+                                "/USER" => {
+                                    debug!("[{}] Setting user info", client.addr);
+                                    match client.set_info(c[1]) {
+                                        Ok(_) => (),
+                                        Err(e) => {
+                                            // we need to close this connection
+                                            error!("[{}] unable to set client info: {}",
+                                                    client.addr, e);
+                                            client.close("** Going to close connection.");
+                                        },
+                                    }
+                                },
+                                "/USERS" => {
+                                    // list the users
+                                    client.write(Message::from(
+                                        client.get_userlist()));
+                                }
+                                _ => {
+                                    warn!("[{}] unknown command: {:?}", client.addr, c);
+                                }
+                            }
+                            handled = true;
+                        }
+                        
+                        if !handled {
+                            client.to_central(msg);
+                        }
+                    }	    
+                    Ok(_) => (), // ignore other websocket message types
+                    Err(Error::ConnectionClosed) => {
+                        info!("[{}] websocket closed.", client.addr);
+                        client.mark_connection_closed();
+                    },
+                    Err(Error::AlreadyClosed) => {
+                        info!("[{}] websocket already closed.", client.addr);
+                        client.mark_connection_closed();
+                    },	    
+                    Err(e) => {
+                        info!("[{}] websocket error: ({}) {}",
+                        client.addr, type_of(&e), e);
+                        client.mark_connection_closed();
+                    },
+                }
+            }
+        } // end of loop
+        debug!("[{}] closed read loop.", client.addr);
+    });
 }
 
 fn type_of<T>(_: &T) -> &'static str {
