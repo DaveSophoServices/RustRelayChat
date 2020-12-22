@@ -79,6 +79,7 @@ pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
         is_admin: Mutex::new(false),
     });
     info!("new connection: {}", r.addr);
+    r.ch.add_client(r.clone());
     
     // spin off the threads to do the receiving and sending
     sender(r.clone());
@@ -226,7 +227,7 @@ impl Client {
         self.mark_connection_closed();
     }
     
-    fn get_name(&self) -> String {
+    pub fn get_name(&self) -> String {
         match self.name.lock() {
             Ok(s) => s.clone(),
             Err(e) => panic!("[{}] Unable to obtain lock for name: {}",

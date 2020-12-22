@@ -53,9 +53,9 @@ fn run(timer: u64) {
 
     
     for stream in server.incoming() {
-	if let Ok(stream) = stream {
-	    client::new(stream, main_server.clone());
-	}
+		if let Ok(stream) = stream {
+			client::new(stream, main_server.clone());
+		}
     }
 }
 
