@@ -1,103 +1,134 @@
 <!DOCTYPE html>
 <html>
-    <head>
+<head>
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/css/bootstrap.min.css" integrity="sha384-TX8t27EcRE3e/ihU7zmQxVncDAy5uIKz4rEkgIXeMed4M0jlfIDPvg6uqKI2xXr2" crossorigin="anonymous">
 	<meta charset="utf-8">
-    </head>
-    <body>
+</head>
+<body>
 	<div style="padding:10px 10%;margin-bottom:10px;background-color:navy;color:white"><h1>Chat page</h1></div>
 	<div class="container">
-	    <section id="connect" class="row" style="margin-bottom:10px">
-		<button onClick="letsgo()">Connect</button>
-	    </section>
-	    <section class="row">
-		<form id="form">
-		    <input type="text" name="message" id="message">
-		    <input type="submit" value="Send">
-		</form>
-	    </section>
-	    <section class="row">
-		<div><span id="users" >...</span> users online</div>
-	    </section>
-	    <section class="row border bg-light px-2">
-		<pre id="log"></pre>
-	    </section>
+		<section id="connect" class="row" style="margin-bottom:10px">
+			<button onClick="letsgo()">Connect</button>
+		</section>
+		<div id="userlist" style="display:none;position:absolute;border:1px solid black;background-color:white;max-height:80%;padding:20px;overflow:auto;border-radius:30px"></div>
+		<div id="interact" style="display:none">
+			<section class="row" >
+				<form id="form">
+					<input type="text" name="message" id="message">
+					<input type="submit" value="Send">
+				</form>
+			</section>
+			<section class="row">
+				<div><span id="users" >...</span> users online. <a href="#" onclick="getUserList()">[Expand]</a></div>
+			</section>
+		</div>
+		<section class="row border bg-light px-2">
+			<pre id="log"></pre>
+		</section>
 	</div>
 	<script type="text/javascript">
-	 function log(msg) {
-	     var log=document.querySelector('#log');
-	     log.innerText = log.innerText + msg + "\n";
-	 }
-	 function getField(f) {
-	     return document.querySelector(f).value;
-	 }
-	 function updateField(f, t) {
-	     document.querySelector(f).innerText=t;
-	 }
-	 function show(f) {
-	     document.querySelector(f).style.display="";
-	 }
-	 function hide(f) {
-	     document.querySelector(f).style.display="none";
-	 }
-	 function parseStat(stats) {
-	     try {
-		 x = JSON.parse(stats);
-		 updateField("#users", x.users);
-	     } catch(err) {
-		 console.log("invalid data from server: " + err);
-	     }
-	 }      
-
-	 var ws;
-
-	 function letsgo() {
-	     fetch('https://wp.sophoservices.com/get_username.php', { credentials: "include", cache: "no-store"})
-		 .then(function(r) {
-		     if (!r.ok) { throw new Error(`HTTP error! status: ${r.status}`); }
-		     return r.text();
-		 })
-		 .then(function(t) {
-		     connect(t);
-		 });
-	 }
-	 
-	 function connect(info) {
-	     //ws = new WebSocket('ws://chat.sophoservices.com:9001/' + channel);
-	     ws = new WebSocket('ws://localhost:9001/');
-	     ws.onopen = function () {
-		 log('connected');
-		 hide('#connect');
-		 ws.send("/USER " + info);
-	     };
-	     ws.onclose = function (ev) {
-		 log('closed');
-		 show('#connect');
-	     };
-	     ws.onmessage = function (ev) {
-		 var d = ev.data;
-		 if (d.startsWith('!*STAT ')) {
-		     // information
-		     parseStat(d.substring(7)); // after '!* STAT '
-		     d = `__${d}__`;
-		 } else {
-		     log('received: ' + d);
-		 }
-             };
-             ws.onerror = function (ev) {
-		 console.log(ev);
-		 log('error: ' + ev.data);
-		 show('#connect');
-             };
-	 }
-	 document.querySelector('#form')
-		 .addEventListener('submit', function (evt) {
-		     msg = document.querySelector("#message");
-		     ws.send(msg.value);
-		     msg.value='';
-		     evt.preventDefault();
-		 } );
-	 
+		function log(msg) {
+			var log=document.querySelector('#log');
+			log.innerText = log.innerText + msg + "\n";
+		}
+		function getEl(f) {
+			return document.querySelector(f);
+		}
+		function getField(f) {
+			return document.querySelector(f).value;
+		}
+		function updateField(f, t) {
+			document.querySelector(f).innerText=t;
+		}
+		function updateFieldHTML(f,t) {
+			document.querySelector(f).innerHTML=t;
+		}
+		function show(f) {
+			document.querySelector(f).style.display="";
+		}
+		function hide(f) {
+			document.querySelector(f).style.display="none";
+		}
+		function parseStat(stats) {
+			try {
+				x = JSON.parse(stats);
+				updateField("#users", x.users);
+			} catch(err) {
+				console.log("invalid data from server: " + err);
+			}
+		}
+		function parseUserlist(userlist) {
+			try {
+				var list = "<div style='text-align:right;cursor:pointer' onclick='hide(\"#userlist\")'>X</div>";
+				x = JSON.parse(userlist);
+				console.log(x);
+				for (const u in x.users) {
+					list += "<div>" + x.users[u].user + "</div>";
+					console.log(u);
+				}
+				updateFieldHTML("#userlist", list);
+				show("#userlist");				
+			} catch (err) {
+				console.log("invalid data from server - userlist: " + err);
+			}
+		}
+		function getUserList() {
+			ws.send("/USERS");
+		}
+		var ws;
+		
+		function letsgo() {
+			fetch('https://wp.sophoservices.com/get_username.php', { credentials: "include", cache: "no-store"})
+			.then(function(r) {
+				if (!r.ok) { throw new Error(`HTTP error! status: ${r.status}`); }
+				return r.text();
+			})
+			.then(function(t) {
+				connect(t);
+			});
+		}
+		
+		function connect(info) {
+			//ws = new WebSocket('ws://chat.sophoservices.com:9001/' + channel);
+			ws = new WebSocket('ws://localhost:9001/');
+			ws.onopen = function () {
+				log('connected');
+				hide('#connect');
+				show('#interact');
+				ws.send("/USER " + info);
+			};
+			ws.onclose = function (ev) {
+				log('closed');
+				show('#connect');
+				hide('#interact');
+			};
+			ws.onmessage = function (ev) {
+				var d = ev.data;
+				if (d.startsWith('!*STAT ')) {
+					// information
+					parseStat(d.substring(7)); // after '!*STAT '
+				} else if (d.startsWith('!*USERLIST ')) {
+					// user list
+					parseUserlist(d.substring(11)); // after '!*USERLIST '
+				} else {
+					log('received: ' + d);
+				}
+			};
+			ws.onerror = function (ev) {
+				console.log(ev);
+				log('error: ' + ev.data);
+				show('#connect');
+				hide('#interact');
+			};
+		}
+		document.querySelector('#form')
+		.addEventListener('submit', function (evt) {
+			msg = document.querySelector("#message");
+			ws.send(msg.value);
+			msg.value='';
+			evt.preventDefault();
+		} );
+		
 	</script>
-    </body>
+</body>
 </html>

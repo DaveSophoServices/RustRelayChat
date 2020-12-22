@@ -53,16 +53,18 @@ impl ChannelServer {
 	// of the current users in this channel
 	pub fn get_userlist(&self) -> String {
 		let mut s = String::new();
-		s.push_str(r#"{"users":["#);
+		s.push_str(r#"!*USERLIST {"users":["#);
 		
 		// iterate the clients and build our string
 		if let Ok(list) = self.clientlist.lock() {
+			let mut user_list = Vec::new();
 			for c in list.iter() {				
-				s.push_str(&format!(
+				user_list.push(format!(
 					r#"{{"user":"{}" }}"#,
 					c.get_name()
 				));
 			}
+			s.push_str(&user_list.join(","));
 		}
 		s.push_str("]}");
 		return s;
@@ -94,6 +96,23 @@ impl ChannelServer {
 		}
 	}
 
+	pub fn remove_client(&self, client:&Client) {
+		match self.clientlist.lock() {
+			Ok(mut list) => {
+				let mut x: Option<usize> = None;
+				for (i,c) in list.iter().enumerate() {
+					if Arc::as_ptr(c) == client {
+						x = Some(i);
+					}
+				}
+				if let Some(x) = x {
+					debug!("Removing from clientlist");
+					list.remove(x);
+				}
+			},
+			Err(_) => ()
+		}
+	}
 	pub fn core (&mut self) {
 		loop {
 			if *self.shutdown.read().unwrap() != 0 {
