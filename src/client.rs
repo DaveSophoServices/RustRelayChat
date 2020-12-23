@@ -299,6 +299,7 @@ impl Client {
     fn set_info(&self, arg: &str) -> Result<bool, String> {
         // check the hmac at the end first
         let a:Vec<&str> = arg.rsplitn(2,'\n').collect();
+        // TODO replace constant with config variable
         match hasher::verify(a[0], a[1], "mysecretkey") {
             Ok(_) => { 
                 // yes, the info is good
