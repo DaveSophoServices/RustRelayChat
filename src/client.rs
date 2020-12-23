@@ -139,7 +139,6 @@ fn receiver(client: Arc<Client>) {
                     Ok(Message::Text(msg)) => {
                         // going to log the command
                         client.log(&msg);
-                        debug!("[{}] Sending msg ({:?}) to central", client.addr, msg);
                         let mut handled = false;
                         if msg.starts_with('/') {
                             debug!("[{}] {} command", client.addr, msg);
@@ -159,6 +158,7 @@ fn receiver(client: Arc<Client>) {
                                             // we need to close this connection
                                             error!("[{}] unable to set client info: {}",
                                                     client.addr, e);
+                                            client.write(Message::Text("!*MSG Please login to citysaver before connecting to chat.".to_string()));
                                             client.close("** Going to close connection.");
                                         },
                                     }
@@ -176,6 +176,12 @@ fn receiver(client: Arc<Client>) {
                         }
                         
                         if !handled {
+                            // prepend the originating user's name
+                            let mut msg = format!("{}: {}", client.get_name(), msg);
+                            if msg.starts_with("!*") {
+                                msg.insert(0, ' ');
+                            }
+                            debug!("[{}] Sending msg ({:?}) to central", client.addr, msg);
                             client.to_central(msg);
                         }
                     }	    
