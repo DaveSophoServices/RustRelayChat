@@ -5,8 +5,22 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<script>
-		var WP_SERVER="https://wp.sophoservices.com/get_username.php";
-		var CHAT_SERVER="ws://chat.sophoservices.com:9001";
+		var c = { "dev": 
+					{ "WP_SERVER":"https://wp.sophoservices.com/get_username.php",
+					  "CHAT_SERVER":"ws://localhost:9001"
+					},
+				   "stage":
+					{ "WP_SERVER":"https://wp.sophoservices.com/get_username.php",
+					  "CHAT_SERVER":"ws://chat.sophoservices.com:9001"
+					}
+				}
+		function update_config() {
+			var mode = getEl("#mode_select").value;
+			WP_SERVER=c[mode]['WP_SERVER'];
+			CHAT_SERVER=c[mode]['CHAT_SERVER'];
+		}				
+ 		var WP_SERVER=c['dev']['WP_SERVER'];
+		var CHAT_SERVER=c['dev']['CHAT_SERVER'];
 	</script>
 	<style>
 		#msg-div, #userlist-div {
@@ -32,6 +46,10 @@
 <body>
 	<div style="padding:10px 10%;margin-bottom:10px;background-color:navy;color:white"><h1>Chat page</h1></div>
 	<div class="container">
+		<select id='mode_select' onchange="update_config()">
+			<option value="dev">dev</option>
+			<option value="stage">stage</option>
+		</select>
 		<section id="connect" class="row" style="margin-bottom:10px">
 			<button onClick="letsgo()">Connect</button>
 		</section>
