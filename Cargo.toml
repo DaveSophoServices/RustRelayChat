@@ -16,5 +16,6 @@ serde = { version = "^1.0", features = ["derive"] }
 chrono = "0.4"
 mysql = "*"
 hmac-sha256 = "0"
-
+rand = { version="0.*",features=["getrandom"] }
+rand_chacha = "*"
 hex = "*"

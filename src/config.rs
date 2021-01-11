@@ -1,5 +1,8 @@
 use serde::{Deserialize,Serialize};
 use serde_json;
+use rand::prelude::*;
+use rand_chacha::ChaCha20Rng;
+use log::warn;
 
 #[derive(Debug,Deserialize,Serialize)]
 pub struct Config {
@@ -17,6 +20,8 @@ pub struct Config {
     pub dbport:i32,
     #[serde(default="def_dbname")]
     pub dbname:String,
+    #[serde(default="def_seckey")]
+    pub seckey:String,
 }
 
 pub fn parse_json(json:&str) -> Config {
@@ -31,7 +36,8 @@ pub fn default() -> Config {
 	dbpass: def_dbpass(),
 	dbhost: def_dbhost(),
 	dbport: def_dbport(),
-	dbname: def_dbname(),
+    dbname: def_dbname(),
+    seckey: def_seckey(),
     }
 }
 
@@ -48,6 +54,13 @@ fn def_dbhost() -> String { "".to_string() }
 fn def_dbport() -> i32 { -1 }
 
 fn def_dbname() -> String { "".to_string() }
+
+fn def_seckey() -> String { 
+    let mut rnd = ChaCha20Rng::from_entropy(); 
+    let x:u32 = rnd.gen(); 
+    warn!("Using random value for seckey."); 
+    format!("{}",x) 
+}
 
 #[cfg(test)]
 mod tests {

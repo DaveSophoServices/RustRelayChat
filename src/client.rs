@@ -300,7 +300,7 @@ impl Client {
         // check the hmac at the end first
         let a:Vec<&str> = arg.rsplitn(2,'\n').collect();
         // TODO replace constant with config variable
-        match hasher::verify(a[0], a[1], "mysecretkey") {
+        match hasher::verify(a[0], a[1], self.main_server.get_secret_key()) {
             Ok(_) => { 
                 // yes, the info is good
                 debug!("info is good: {:?}", a[1]);

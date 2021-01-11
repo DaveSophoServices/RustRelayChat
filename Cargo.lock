@@ -750,6 +750,8 @@ dependencies = [
  "http",
  "log",
  "mysql",
+ "rand",
+ "rand_chacha",
  "serde",
  "serde_json",
  "simplelog",
