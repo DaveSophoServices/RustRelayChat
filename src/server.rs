@@ -19,12 +19,19 @@ pub struct Server {
 // Server holds a map of channel strings to channel servers
 impl Server {
 	pub fn new(config:Arc<config::Config>) -> Server {
-		Server {
+		let s = Server {
 			shutdown: Arc::new(RwLock::new(0)),
 			channels: Arc::new(RwLock::new(HashMap::new())),
 			dblogger: Arc::new(dblog::new(config.clone())),
 			config,
+		};
+		if s.config.startup_rooms.len() > 0 {
+			let rooms = s.config.startup_rooms.clone();
+			for ch in rooms {
+				s.create_channel_server(ch);
+			}
 		}
+		return s;
 	}
 	
 	pub fn shutdown_ref(&self) -> Arc<RwLock<u32>> {
@@ -36,27 +43,35 @@ impl Server {
 			Some(x) => x.to_string(),
 			None => String::from(""),
 		};
-		
-		match self.channels.write() {
-			Ok(mut channels) => {
-				match channels.get(&uri) {
+		let ret:Option<ChannelServer>;
+		match self.channels.read() {
+			Ok(channels) => {
+				ret = match channels.get(&uri) {
 					Some(x) => Some(x.clone()),
-					None => {
-						if self.config.auto_create_rooms {
-							debug!("Creating new channel_server: {}", uri);
-							let uri_key = uri.clone();
-							channels.insert(uri_key, channel_server::new(self.shutdown.clone(), &uri));
-							Some(channels.get(&uri).unwrap().clone())
-						} else {
-							None
-						}
-					},
+					None => None
 				}
-			},
-			Err(_) => panic!("failed!"),
+			}
+			Err(_) => panic!("failed to get read access to channel list!"),
+		}
+		if self.config.auto_create_rooms && ret.is_none() {
+			self.create_channel_server(uri)
+		} else {
+			ret
 		}
 	}
 	
+	pub fn create_channel_server(&self, name:String) -> Option<ChannelServer> {
+		match self.channels.write() {
+			Ok(mut channels) => {
+				debug!("Creating new channel_server: {}", name);
+				let name_key = name.clone();
+				channels.insert(name_key, channel_server::new(self.shutdown.clone(), &name));
+				Some(channels.get(&name).unwrap().clone())
+			},
+			Err(_) => panic!("failed to get write access to channel list!"),
+		}
+	}
+
 	pub fn logger_channel(&self) -> Option<mpsc::Sender<dblog::logmessage::LogMessage>> {
 		self.dblogger.get_sender()
 		

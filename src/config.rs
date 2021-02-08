@@ -22,6 +22,8 @@ pub struct Config {
     pub dbname:String,
     #[serde(default="def_seckey")]
     pub seckey:String,
+    #[serde(default="def_startup_rooms")]
+    pub startup_rooms:Vec<String>,
 }
 
 pub fn parse_json(json:&str) -> Config {
@@ -38,6 +40,7 @@ pub fn default() -> Config {
 	dbport: def_dbport(),
     dbname: def_dbname(),
     seckey: def_seckey(),
+    startup_rooms: def_startup_rooms(),
     }
 }
 
@@ -62,6 +65,8 @@ fn def_seckey() -> String {
     format!("{}",x) 
 }
 
+fn def_startup_rooms() -> Vec<String> { vec!() } // empty list
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -76,5 +81,13 @@ mod tests {
     #[test]
     fn config_partial() {
 	let c = parse_json("{}");
+    }
+
+    #[test]
+    fn config_rooms() {
+        let c = parse_json(r#"{"startup_rooms": [ "room_a", "room_b" ] }"#);
+        assert_eq!(c.startup_rooms.len(), 2, "2 entries in startup rooms");
+        let c = parse_json(r#"{ }"#);
+        assert_eq!(c.startup_rooms.len(), 0, "blank list of startup rooms");
     }
 }
