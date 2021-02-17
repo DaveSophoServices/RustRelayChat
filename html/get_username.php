@@ -19,6 +19,8 @@ if ($user->exists()) {
         $ret["admin"] = true;
     }
 	$ret["display"] = $user->display_name;
+    $ret["first_last_name"] = "$user->first_name $user->last_name";
+    $ret["username"] = $user->user_login;
 } else {
 	$ret["err"] = 'user not logged in';
 }

@@ -81,10 +81,12 @@ fn logger(rx: mpsc::Receiver<LogMessage>, config:Arc<config::Config>, dbl:DBLog)
 fn insert(conn: & mut mysql::Conn, m: LogMessage) {
 	// this is a LogMessage
 	debug!("About to log our message to the DB");
-	match conn.exec_drop("INSERT INTO chat_log (username,address,channel,stamp,message)
+	match conn.exec_drop("INSERT INTO chat_log (username,first_last,display,address,channel,stamp,message)
 	VALUES (:username,:address,:channel,FROM_UNIXTIME(:stamp),:message)",
 	params! {
-		"username" => m.user,
+		"username" => m.userinfo.username,
+		"first_last" => m.userinfo.first_last,
+		"display" => m.userinfo.display,
 		"address" => format!("{}",m.addr),
 		"channel" => m.channel,
 		"stamp" => m.datetime.timestamp(),

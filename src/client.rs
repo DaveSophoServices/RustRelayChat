@@ -14,7 +14,7 @@ use crate::userinfo;
 use log::{debug,info,warn,error};
 
 pub struct Client {
-    name: Mutex<String>,
+    userinfo: Mutex<userinfo::UserInfo>,
     addr: SocketAddr,
     websocket_ro: Mutex<WebSocket<TcpStream>>,
     websocket_wo: Mutex<WebSocket<TcpStream>>,
@@ -26,7 +26,6 @@ pub struct Client {
     rx: Arc<Mutex<mpsc::Receiver<Message>>>,
     main_server: Arc<Server>,
     log_channel: Option<Mutex<mpsc::Sender<LogMessage>>>,
-    is_admin: Mutex<bool>,
 }
 
 pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
@@ -64,7 +63,7 @@ pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
         None => None,
     };
     let r = Arc::new(Client {
-        name: Mutex::new("user".to_string()),
+        userinfo: Mutex::new(userinfo::UserInfo::blank()),
         addr,
         websocket_ro,
         websocket_wo,
@@ -76,7 +75,6 @@ pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
         stats,
         main_server,
         log_channel,
-        is_admin: Mutex::new(false),
     });
     info!("new connection: {}", r.addr);
     r.ch.add_client(r.clone());
@@ -237,26 +235,24 @@ impl Client {
     }
     
     pub fn get_name(&self) -> String {
-        match self.name.lock() {
-            Ok(s) => s.clone(),
+        match self.userinfo.lock() {
+            Ok(s) => s.display.clone(),
             Err(e) => panic!("[{}] Unable to obtain lock for name: {}",
                                 self.addr, e),
-
-        }
-    }
-    fn set_name(&self, n:String) {
-        match self.name.lock() {
-            Ok(mut s) => *s = n,
-            Err(e) => panic!("[{}] Unable to obtain lock for set name: {}",
-                                self.addr, e),
         }
     }
 
-    fn set_is_admin(&self, b:bool) {
-        match self.is_admin.lock() {
-            Ok(mut a) => *a = b,
-            Err(e) => panic!("[{}] Unable to obtain lock for set is_admin: {}",
-                                self.addr, e),
+    fn get_clone_of_userinfo(&self) -> userinfo::UserInfo {
+        match self.userinfo.lock() {
+            Ok(s) => s.clone(),
+            Err(e) => panic!("[{}] Unable to obtain lock for userinfo: {}", self.addr, e),
+        }
+    }
+
+    fn set_userinfo(&self, user:userinfo::UserInfo) {
+        match self.userinfo.lock() {
+            Ok(mut u) => *u = user,
+            Err(e) => panic!("[{}] Unable to obtain lock for set_userinfo: {}", self.addr, e),
         }
     }
 
@@ -266,18 +262,18 @@ impl Client {
     }
     // record the incoming message (&String) to the database
     fn log(&self, msg: &str) {
-        let name = self.get_name();
-        debug!("Going to log {} by {} to database", name, msg);
+        let user = self.get_clone_of_userinfo();
+        debug!("Going to log {} by {} to database", user.display, msg);
         match &self.log_channel {
             Some(ch) => {
                 if let Ok(ch) = ch.lock() {
-                    match ch.send(logmessage::new(name,
-                    self.addr.clone(),
-                    self.ch.get_name(),
-                    msg.to_string())) {
-                        Ok(_) => (),
-                        Err(e) =>
-                        error!("Unable to send LogMessage for logging: {}",e),
+                    match ch.send(logmessage::new(user,
+                        self.addr.clone(),
+                        self.ch.get_name(),
+                        msg.to_string())) {
+                            Ok(_) => (),
+                            Err(e) =>
+                            error!("Unable to send LogMessage for logging: {}",e),
                         
                     }
                 }
@@ -299,7 +295,6 @@ impl Client {
     fn set_info(&self, arg: &str) -> Result<bool, String> {
         // check the hmac at the end first
         let a:Vec<&str> = arg.rsplitn(2,'\n').collect();
-        // TODO replace constant with config variable
         match hasher::verify(a[0], a[1], self.main_server.get_secret_key()) {
             Ok(_) => { 
                 // yes, the info is good
@@ -310,9 +305,7 @@ impl Client {
                         Err(info.err)
                     } else {
                         // assign the details to our session
-                        self.set_name(info.display);
-                        //self.channel = Some(info.channel);
-                        self.set_is_admin(info.admin);
+                        self.set_userinfo(info);
                         Ok(true)
                     }
                 } else {
