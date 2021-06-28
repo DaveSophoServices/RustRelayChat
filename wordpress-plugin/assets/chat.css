@@ -1,0 +1,18 @@
+#msg-div, #userlist-div {
+  display:none;
+  position:absolute;
+  border:1px solid black;
+  background-color: white;
+  max-height:80%;
+  padding:30px;
+  overflow:auto;
+  border-radius:30px;
+}
+#msg-div {
+  margin:auto;
+  width:auto;
+  left:50%;
+  top:50%;
+  /* use above left,top reference to center of div */
+  transform: translate(-50%,-50%); 
+}
