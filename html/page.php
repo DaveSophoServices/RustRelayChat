@@ -1,3 +1,9 @@
+<?php define( 'BASE_PATH', __DIR__ . "/" );
+define('WP_USE_THEMES', false);
+global $wp, $wp_query, $wp_the_query, $wp_rewrite, $wp_did_header;
+
+require_once(BASE_PATH . '/wp-load.php');
+get_header(); ?>
 	<script>
 		var c = { "dev": 
 					{ "WP_SERVER":"https://wp.sophoservices.com/get_username.php",
@@ -186,4 +192,6 @@
 		} );
 		
 	</script>
-
+<?php get_sidebar();
+get_footer();
+?>

@@ -15,8 +15,8 @@ function update_config() {
   WP_SERVER = c[mode]['WP_SERVER'];
   CHAT_SERVER = c[mode]['CHAT_SERVER'];
 }
-var WP_SERVER = c['dev']['WP_SERVER'];
-var CHAT_SERVER = c['dev']['CHAT_SERVER'];
+var WP_SERVER = c['stage']['WP_SERVER'];
+var CHAT_SERVER = c['stage']['CHAT_SERVER'];
 
 function log(msg) {
   var log = document.querySelector('#log');

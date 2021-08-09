@@ -2,8 +2,9 @@
 /*
  *Add a shortcode [chat-plugin] for inserting the HTML for the plugin
  */
-add_shortcut("chat-plugin", "create_chat_plugin");
 
+
+add_shortcode("chat-plugin", "create_chat_plugin");
 
 function create_chat_plugin() {
   ?>
@@ -29,7 +30,10 @@ function create_chat_plugin() {
 		<section class="row border bg-light px-2">
 			<pre id="log"></pre>
 		</section>
+		<script type="javascript">letsgo();</script>
+	
   <?php
 }
+
 
 ?>
