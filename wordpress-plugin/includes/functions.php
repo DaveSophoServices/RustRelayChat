@@ -7,6 +7,7 @@
 add_shortcode("chat-plugin", "create_chat_plugin");
 
 function create_chat_plugin() {
+	chat_styles_and_scripts_enqueue();
   ?>
 		<div id="userlist-div">
 			<div style='text-align:right;cursor:pointer' onclick='hide("#userlist-div")'>X</div>
@@ -35,5 +36,15 @@ function create_chat_plugin() {
   <?php
 }
 
+function chat_styles_and_scripts_reg() {
+	wp_register_style( 'chat-plugin-css', plugins_url('/assets/chat.css', dirname(__FILE__)));	
+	wp_register_script( 'chat-plugin-js',plugins_url ('/assets/chat.js', dirname(__FILE__)));
+	
+}
+add_action('wp_enqueue_scripts', 'chat_styles_and_scripts_reg');
 
+function chat_styles_and_scripts_enqueue() {
+	wp_enqueue_style ('chat-plugin-css');
+	wp_enqueue_script('chat-plugin-js');
+}
 ?>
