@@ -4,6 +4,7 @@ use tungstenite::{accept_hdr,Error,Message,WebSocket};
 use std::thread::spawn;
 use std::time::Duration;
 
+#[cfg(feature="dblog")]
 use crate::dblog::{logmessage, logmessage::LogMessage};
 use crate::server::channel_server::ChannelServer;
 use crate::stats::Stats;
@@ -25,6 +26,7 @@ pub struct Client {
     tx: Arc<Mutex<mpsc::Sender<Message>>>,
     rx: Arc<Mutex<mpsc::Receiver<Message>>>,
     main_server: Arc<Server>,
+    #[cfg(feature="dblog")]
     log_channel: Option<Mutex<mpsc::Sender<LogMessage>>>,
 }
 
@@ -57,11 +59,14 @@ pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
     
     let stats = ch.get_stats();
     
-    let log_channel =
-    match main_server.logger_channel() {
-        Some(lc) => Some(Mutex::new(lc)),
-        None => None,
-    };
+    #[cfg(feature="dblog")]
+    {
+        let log_channel =
+        match main_server.logger_channel() {
+            Some(lc) => Some(Mutex::new(lc)),
+            None => None,
+        };
+    }
     let r = Arc::new(Client {
         userinfo: Mutex::new(userinfo::UserInfo::blank()),
         addr,
@@ -74,6 +79,7 @@ pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
         shutdown: main_server.shutdown_ref(),
         stats,
         main_server,
+        #[cfg(feature="dblog")]
         log_channel,
     });
     info!("new connection: {}", r.addr);
@@ -136,6 +142,7 @@ fn receiver(client: Arc<Client>) {
                 match ws.read_message() {
                     Ok(Message::Text(msg)) => {
                         // going to log the command
+                        #[cfg(feature="dblog")]
                         client.log(&msg);
                         let mut handled = false;
                         if msg.starts_with('/') {
@@ -260,7 +267,9 @@ impl Client {
         // asks the channel for a list of usernames connected
         self.ch.get_userlist()
     }
+
     // record the incoming message (&String) to the database
+    #[cfg(feature="dblog")]
     fn log(&self, msg: &str) {
         let user = self.get_clone_of_userinfo();
         debug!("Going to log {} by {} to database", user.display, msg);

@@ -8,6 +8,7 @@ mod stats;
 mod websocket_headers;
 mod config;
 mod client;
+#[cfg(feature="dblog")]
 mod dblog;
 mod hasher;
 mod userinfo;

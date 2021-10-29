@@ -6,6 +6,7 @@ pub mod channel_server;
 use channel_server::ChannelServer; 
 use super::websocket_headers::WebsocketHeaders;
 use crate::config;
+#[cfg(feature="dblog")]
 use crate::dblog;
 
 #[derive(Clone)]
@@ -13,6 +14,7 @@ pub struct Server {
 	shutdown: Arc<RwLock<u32>>,
 	channels: Arc<RwLock<HashMap<String,ChannelServer>>>,
 	config: Arc<config::Config>,
+	#[cfg(feature="dblog")]
 	dblogger: Arc<dblog::DBLog>,
 }
 
@@ -22,6 +24,7 @@ impl Server {
 		let s = Server {
 			shutdown: Arc::new(RwLock::new(0)),
 			channels: Arc::new(RwLock::new(HashMap::new())),
+			#[cfg(feature="dblog")]
 			dblogger: Arc::new(dblog::new(config.clone())),
 			config,
 		};
@@ -72,6 +75,7 @@ impl Server {
 		}
 	}
 
+	#[cfg(feature="dblog")]
 	pub fn logger_channel(&self) -> Option<mpsc::Sender<dblog::logmessage::LogMessage>> {
 		self.dblogger.get_sender()
 		
