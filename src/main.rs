@@ -1,7 +1,9 @@
 use std::net::TcpListener;
+use native_tls::{Identity,TlsAcceptor, TlsStream};
 use std::thread::spawn;
 use std::sync::{Arc};
 use std::time::Duration;
+use std::fs::File;
 
 mod server;
 mod stats;
@@ -23,6 +25,19 @@ fn main() {
 fn run(timer: u64) {
     // load config
     let config = Arc::new(load_config());
+
+	// load the CERT for ssl
+	let mut file = 
+		match File::open(config.certkey) {
+			Ok(file) => file,
+			Err(why) => panic!("couldn't open {}: {}", config.certkey, why),	
+		};
+	
+	let mut identity = vec![];
+	file.read_to_end(&mut identity).unwrap();
+	let identity = Identity::from_pkcs12(&identity, "hunter2").unwrap();
+
+
     let server = 
 	match TcpListener::bind(format!("0.0.0.0:{}", config.port)) {
 	    Ok(x) => x,
@@ -52,7 +67,11 @@ fn run(timer: u64) {
 	});
     }
 
-    
+
+	let listener = TcpListener::bind("0.0.0.0:8443").unwrap();
+	let acceptor = TlsAcceptor::new(identity).unwrap();
+	let acceptor = Arc::new(acceptor);
+		
     for stream in server.incoming() {
 		if let Ok(stream) = stream {
 			client::new(stream, main_server.clone());
