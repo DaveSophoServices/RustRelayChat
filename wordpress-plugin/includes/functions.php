@@ -8,6 +8,23 @@ add_shortcode("chat-plugin", "create_chat_plugin");
 
 function create_chat_plugin() {
 	chat_styles_and_scripts_enqueue();
+	$user = wp_get_current_user();
+	$ret["ts"] = time();
+	if ($user->exists()) {
+		$ret["login"] = $user->user_login;
+		$ret["channel"] = "/us/mo/stl";
+		$caps = $user->get_role_caps();
+		if (isset($caps["administrator"]) && $caps["administrator"]) {
+			$ret["admin"] = true;
+		}
+		$ret["display"] = $user->display_name;
+		$ret["first_last_name"] = "$user->first_name $user->last_name";
+		$ret["username"] = $user->user_login;
+	} else {
+		$ret["err"] = 'user not logged in';
+	}
+	$out = json_encode($ret);
+	$hash = hash_hmac("sha256",$out, "mysecretkey");	
   ?>
 		<div id="userlist-div">
 			<div style='text-align:right;cursor:pointer' onclick='hide("#userlist-div")'>X</div>
@@ -31,7 +48,8 @@ function create_chat_plugin() {
 		<section class="row border bg-light px-2">
 			<pre id="log"></pre>
 		</section>
-		<script type="javascript">letsgo();</script>
+		<script type="javascript">
+			letsgo('<?php echo addslashes($out);?>',"<?php echo $hash;?>");</script>
 	
   <?php
 }

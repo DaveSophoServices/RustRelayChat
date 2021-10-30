@@ -21,6 +21,7 @@ var CHAT_SERVER = c['stage']['CHAT_SERVER'];
 function log(msg) {
   var log = document.querySelector('#log');
   log.innerText = log.innerText + msg + "\n";
+  console.log(msg);
 }
 function getEl(f) {
   return document.querySelector(f);
@@ -72,19 +73,29 @@ function popup_message(msg) {
 }
 var ws;
 
-function letsgo() {
-  fetch(WP_SERVER, { credentials: "include", cache: "no-store" })
-    .then(function (r) {
-      if (!r.ok) { throw new Error(`HTTP error! status: ${r.status}`); }
-      return r.text();
-    })
-    .then(function (t) {
-      connect(t);
-    });
+function letsgo(user="", hash="") {
+  if (user == "" && hash == "") {
+    fetch(WP_SERVER, { credentials: "include", cache: "no-store" })
+      .then(function (r) {
+        if (!r.ok) { throw new Error(`HTTP error! status: ${r.status}`); }
+        return r.text();
+      })
+      .then(function (t) {
+        connect(t);
+      });
+  } else {
+    try {
+      connect(user+"\n"+hash)
+    } catch (err) {
+      log("Unable to connect to websocket server for chat: " + err);
+    }
+  }
 }
 
 function connect(info) {
+  log('going to join server');
   ws = new WebSocket(CHAT_SERVER);
+  log('returned ' + ws);
   var ws_connected = false;
   ws.onopen = function () {
     log('connected');
