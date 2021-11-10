@@ -1,9 +1,10 @@
 use std::net::TcpListener;
-use native_tls::{Identity,TlsAcceptor, TlsStream};
 use std::thread::spawn;
 use std::sync::{Arc};
 use std::time::Duration;
 use std::fs::File;
+use std::io::prelude::*;
+use log::{warn};
 
 mod server;
 mod stats;
@@ -28,15 +29,14 @@ fn run(timer: u64) {
 
 	// load the CERT for ssl
 	let mut file = 
-		match File::open(config.certkey) {
+		match File::open(config.certkey.clone()) {
 			Ok(file) => file,
 			Err(why) => panic!("couldn't open {}: {}", config.certkey, why),	
 		};
 	
 	let mut identity = vec![];
-	file.read_to_end(&mut identity).unwrap();
-	let identity = Identity::from_pkcs12(&identity, "hunter2").unwrap();
-
+	file.read_to_end(&mut identity).unwrap();	
+	
 
     let server = 
 	match TcpListener::bind(format!("0.0.0.0:{}", config.port)) {
@@ -46,7 +46,7 @@ fn run(timer: u64) {
     info!("Listening on port {}", config.port);
     // this channel will be used by clients to put their messages when
     // they receive them from the user
-    let main_server = Arc::new(server::Server::new(config.clone()));
+    let main_server = Arc::new(server::Server::new(config.clone(), identity));
     
     //let (tx,rx) = mpsc::channel();
     //let (newch_tx, newch_rx) = mpsc::channel();
@@ -69,8 +69,6 @@ fn run(timer: u64) {
 
 
 	let listener = TcpListener::bind("0.0.0.0:8443").unwrap();
-	let acceptor = TlsAcceptor::new(identity).unwrap();
-	let acceptor = Arc::new(acceptor);
 		
     for stream in server.incoming() {
 		if let Ok(stream) = stream {

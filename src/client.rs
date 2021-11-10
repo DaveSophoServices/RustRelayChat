@@ -34,7 +34,20 @@ pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
     let ws_hdr_cb = websocket_headers::new_callback();
     let ws_hdr = ws_hdr_cb.hdr();
     let addr = stream.peer_addr().unwrap();
-    
+
+    //TODO: how to handle a TlsStream and TcpStream with the same code?
+    if main_server.has_tls() {
+            match main_server.negotiate_tls(stream) {
+                Ok(s) => s,
+                Err(err) => { 
+                    warn!("Unable to negotiate TLS with {}: {}", addr, err)
+                }
+            }
+        } else {
+            stream
+        });
+
+
     let stream_clone = stream.try_clone();
     let websocket_wo =
     Mutex::new(WebSocket::from_raw_socket(
@@ -91,6 +104,7 @@ pub fn new(stream: TcpStream, main_server: Arc<Server>) -> Option<Arc<Client>> {
     
     return Some(r);	
 }
+
 
 // central -> webbrowser socket
 fn sender(client: Arc<Client>) {

@@ -20,6 +20,8 @@ pub struct Config {
     pub dbport:i32,
     #[serde(default="def_certkey")]
     pub certkey:String,
+    #[serde(default="def_certkeypassword")]
+    pub certkeypassword:String,
     #[serde(default="def_dbname")]
     pub dbname:String,
     #[serde(default="def_seckey")]
@@ -42,6 +44,7 @@ pub fn default() -> Config {
 	dbport: def_dbport(),
     dbname: def_dbname(),
     certkey: def_certkey(),
+    certkeypassword: def_certkeypassword(),
     seckey: def_seckey(),
     startup_rooms: def_startup_rooms(),
     }
@@ -62,6 +65,8 @@ fn def_dbport() -> i32 { -1 }
 fn def_dbname() -> String { "".to_string() }
 
 fn def_certkey() -> String { "".to_string() }
+
+fn def_certkeypassword() -> String { "".to_string() }
 
 fn def_seckey() -> String { 
     let mut rnd = ChaCha20Rng::from_entropy(); 
